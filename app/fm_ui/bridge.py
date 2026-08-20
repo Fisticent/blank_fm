@@ -716,6 +716,11 @@ class FmPanelBridge(QObject):
         return f"Capture en cours · {self.poses} pose(s)"
 
     @Property(str, notify=updated)
+    def protoStatus(self) -> str:
+        p = self._p
+        return getattr(p, "proto_status", "") if p else ""
+
+    @Property(str, notify=updated)
     def itemName(self) -> str:
         p = self._p
         if not p or not getattr(p, "item_gid", 0):

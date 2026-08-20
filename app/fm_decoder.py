@@ -7,7 +7,7 @@ produit un rapport lisible : pour chaque pose de rune, la rune utilisee
 (GID -> nom), son effet (effectId -> nom, valeur), le delta observe sur
 l'effet vise, et l'evolution de l'etat complet de l'item forge.
 
-Decodage reverse-engineere le 2026-08-20 (client Dofus 3, voir PROTOCOL.md) :
+Decodage reverse-engineere le 2026-08-20 (client Dofus 3) :
     kcj (c2s) : ObjectUse          { f1 = UID rune, f3 = 1, f6 = 1 }
     kfb (s2c) : rune utilisee      { f1 { f1 = slot, f5 = ObjectItem {
                                        f1 = GID, f2 = effet, f3 = 1, f4 = UID } } }

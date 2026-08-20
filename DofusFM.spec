@@ -27,6 +27,7 @@ hiddenimports = [
     "sniffer_hdv",
     "paths",
     "npcap_setup",
+    "proto_learn",
     "PySide6.QtCore",
     "PySide6.QtGui",
     "PySide6.QtWidgets",

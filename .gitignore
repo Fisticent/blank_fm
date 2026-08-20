@@ -13,6 +13,7 @@ venv/
 # Session perso
 fm_history.json
 fm_settings.json
+/protocol_map.json
 dofus_fm.log
 _scratch/
 cache/

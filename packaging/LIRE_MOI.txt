@@ -12,6 +12,9 @@ Capture le trafic local du jeu. N'envoie rien au serveur.
    (on n'a pas le droit de le coller dans ce zip).
    Suivant / Suivant, puis parfois reboot Windows, puis relance DofusFM.exe
 5. Lance Dofus, ouvre la forgemagie, pose des runes. L'outil se met a jour.
+   Si Dofus a patch le proto, une pose de rune connue reapprend les messages.
+
+Mises a jour : https://github.com/Fisticent/blank_fm/releases
 
 Windows Defender peut gueuler au premier lancement (normal avec ce type
 d'outil). Ajoute le dossier en exclusion si besoin.

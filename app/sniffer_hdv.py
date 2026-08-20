@@ -1,7 +1,7 @@
 """
 sniffer_hdv.py — Parseur du protocole HDV de Dofus 3 (port 5555).
 
-Reverse-engineeré le 2026-08-09 sur le client 3.6.10.10 (voir PROTOCOL.md).
+Reverse-engineeré le 2026-08-09 sur le client 3.6.10.10.
 
 - Framing réseau : [varint longueur][message protobuf]
 - Enveloppe      : field 1 = type_url "type.ankama.com/<obfusque>", field 2 = payload
@@ -307,7 +307,7 @@ def _print_event(ev: HdvEvent) -> None:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="Parseur protocole HDV Dofus 3 (voir PROTOCOL.md)")
+    ap = argparse.ArgumentParser(description="Parseur protocole HDV Dofus 3")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p_parse = sub.add_parser("parse", help="Analyser un pcap enregistre")
     p_parse.add_argument("pcap")

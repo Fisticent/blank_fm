@@ -981,6 +981,21 @@ ApplicationWindow {
 
                 SectionCard {
                     width: parent.width
+                    height: 72
+                    title: "PROTOCOLE"
+                    Text {
+                        anchors.fill: parent
+                        text: app.protoStatus || "Les noms de messages se réapprennent tout seuls à la pose d'une rune si Dofus patch."
+                        color: Colors.text_muted
+                        font.family: Colors.font_family
+                        font.pixelSize: Colors.font_size_secondary
+                        wrapMode: Text.WordWrap
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+
+                SectionCard {
+                    width: parent.width
                     height: 88
                     title: "CAPTURE NPCAP"
                     Row {
@@ -1033,7 +1048,7 @@ ApplicationWindow {
 
                 SectionCard {
                     width: parent.width
-                    height: parent.height - 298
+                    height: parent.height - 378
                     title: "CARACTÉRISTIQUES SURVEILLÉES"
 
                     Column {

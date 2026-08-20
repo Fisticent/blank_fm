@@ -33,12 +33,11 @@ except ImportError:
 
 from fm_live import TcpStream, extract_envelope
 from fm_decoder import (EFFECTS, ITEMS, RUNES, MALUS_EFFECTS, effect_name,
-                        effect_str, item_name, parse_iuj, parse_kdr, parse_kfb)
+                        effect_str, item_name)
 from fetch_runes import rune_weight
 from item_jet import get_template, global_jet_pct
 from paths import data_file, SCRATCH_DIR
-from fm_cost import parse_ivi
-from sniffer_hdv import parse_message
+from proto_learn import PROTO, classify_payload
 
 PORT_GAME = 5555
 FORGE_SLOT = 63   # emplacement de l'item dans l'interface de forgemagie
@@ -124,6 +123,7 @@ class FmPanel:
         self.t0 = datetime.now()
         self.poses = 0
         self.event_no = 0
+        self.proto_status = PROTO.status()
 
     def close(self) -> None:
         if self._log:
@@ -143,43 +143,40 @@ class FmPanel:
         rec = {"ts": datetime.now().isoformat(timespec="milliseconds"),
                "dir": direction, "url": url, "type": name,
                "frame_hex": frame.hex(), "payload_hex": payload.hex()}
-        ivi_batch = None
-        if name == "ivi":
+        hit = classify_payload(name, payload, direction)
+        kind = hit[0] if hit else None
+        obj = hit[1] if hit else None
+        ivi_batch = obj if kind == "prices" else None
+        if kind == "prices":
             rec["frame_hex"] = ""
             rec["payload_hex"] = ""
-            ivi_batch = parse_ivi(payload)
-            rec["n_prices"] = len(ivi_batch)
+            rec["n_prices"] = len(ivi_batch or {})
         self._log.write(json.dumps(rec, ensure_ascii=False) + "\n")
         self._log.flush()
         self.n += 1
-        if name == "kfb":
-            ru = parse_kfb(payload)
-            if ru:
-                self._rune = ru
-        elif name == "kdr":
-            st = parse_kdr(payload)
-            if st:
-                pending = self._rune
-                if self._is_other_item(st):
-                    self._switch_item(st)
-                    self._rune = pending
-                self._on_state(st, rec["ts"])
-        elif name == "ivi":
+        if PROTO.learned:
+            self.proto_status = PROTO.status()
+            PROTO.learned = False
+        if kind == "rune_echo" and obj:
+            self._rune = obj
+        elif kind == "item_state" and obj:
+            st = obj
+            pending = self._rune
+            if self._is_other_item(st):
+                self._switch_item(st)
+                self._rune = pending
+            self._on_state(st, rec["ts"])
+        elif kind == "prices":
             if ivi_batch:
                 self._apply_prices(ivi_batch)
-        elif name == "iwo":
-            fields = {f: v for f, w, v in parse_message(payload) if w == 0}
-            gid = fields.get(1)
-            if gid is not None:
-                self._pending_price_gid = int(gid)
-        elif name == "kgq":
-            fields = {f: v for f, w, v in parse_message(payload) if w == 0}
-            price = fields.get(1)
-            if self._pending_price_gid and price is not None:
-                self._apply_prices({self._pending_price_gid: int(price)})
-        elif name == "iuj":
-            st = parse_iuj(payload)
-            if st and st.gid:
+        elif kind == "price_gid":
+            self._pending_price_gid = int(obj)
+        elif kind == "price_val":
+            if self._pending_price_gid and obj is not None:
+                self._apply_prices({self._pending_price_gid: int(obj)})
+        elif kind == "inventory" and obj:
+            st = obj
+            if st.gid:
                 if st.slot == FORGE_SLOT:
                     if self._is_other_item(st):
                         self._switch_item(st)

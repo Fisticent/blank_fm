@@ -173,8 +173,7 @@ Quand on applique une rune, trois issues possibles (dénomination communautaire)
 
 > **Message client** : à l'écran, le résultat s'affiche dans le chat
 > (« L'objet gagne +X … » / « L'objet n'a rien gagné »). Pour un bot, on peut
-> détecter l'issue en comparant les stats de l'objet **avant/après** la passe
-> (via les paquets d'objet — voir `PROTOCOL.md` pour le canal HDV/objets).
+> détecter l'issue en comparant les stats de l'objet **avant/après** la passe.
 
 ---
 
@@ -317,5 +316,5 @@ Limites à garder en tête :
   (`Vi` simple 1 vs 2, `Do Ren` 10 vs 5) — DPLN fait foi.
 - Les **probabilités** ne sont que des modèles approchés (dont le simulateur
   gdFM). Pour un bot, la stratégie robuste est empirique : lire l'état de
-  l'objet **avant/après chaque passe** (cf. `PROTOCOL.md`), et non calculer
+  l'objet **avant/après chaque passe**, et non calculer
   une probabilité théorique.
