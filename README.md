@@ -3,8 +3,11 @@
 Outil de **Forgemagie** pour Dofus 3 : capture passive du port 5555 (protobuf en clair).
 Il affiche l’item, le jet, le puits, le coût des runes, les tentatives d’exo et un overlay.
 
-Si Ankama change les noms de messages (`kfb`, `kdr`…), une pose de rune connue
-suffit : l’outil réapprend tout seul et sauve `protocol_map.json`.
+Si Ankama change les noms de messages (`kfb`, `kdr`…), il faut un patch de l’outil
+(les noms ne sont plus réappris tout seuls, ça cassait le switch d’item).
+
+L’exe portable vérifie GitHub au lancement : bandeau si une release est plus récente,
+un clic télécharge le zip et relance.
 
 ## Téléchargement
 
@@ -40,5 +43,6 @@ Build portable : `build_portable.bat` → `dist\DofusFM-portable.zip`
 | `run_ui.py` / `lancer_fm.bat` | Lance l’UI |
 | `app/fm_ui/` | Interface PySide6 / QML |
 | `app/fm_panel.py` | Moteur FM (SC/SN/EC, puits, reliquat) |
-| `app/proto_learn.py` | Réapprentissage des noms de messages |
+| `app/proto_learn.py` | Noms de messages figés (plus d'apprentissage sauvage) |
+| `app/fm_updater.py` | Vérif GitHub + application du zip portable |
 | `app/data/` | Runes, items, prix, effets |

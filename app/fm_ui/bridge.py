@@ -16,11 +16,11 @@ from datetime import datetime
 from typing import Optional
 
 from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer, QUrl, QCoreApplication
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QDesktopServices
 
 from fm_panel import FmPanel, PORT_GAME
 from fm_decoder import RUNES, effect_name, item_name, signed_value
-from fm_ui.constants import STAT_COLORS, STAT_COLOR_FALLBACK
+from fm_ui.constants import STAT_COLORS, STAT_COLOR_FALLBACK, APP_VERSION
 from fm_ui.fm_sounds import (
     DEFAULT_RULES, eval_cues, exo_increased, is_exo_attempt, play_cues,
 )
@@ -118,6 +118,8 @@ class FmPanelBridge(QObject):
     runeIconReady = Signal(int, str)
     npcapChanged = Signal()
     npcapReady = Signal()
+    updateChanged = Signal()
+    requestQuit = Signal()
 
     def __init__(self, qapp=None):
         super().__init__()
@@ -136,6 +138,7 @@ class FmPanelBridge(QObject):
         self._clock_anchor = datetime.now()
         self._clock_paused = False
         self._last_rune_at = None
+        self._history_dirty = False
         self._exo = _empty_exo_counts()
         self._exo_pending_cost = 0
         self._exo_last_cost = 0
@@ -171,6 +174,14 @@ class FmPanelBridge(QObject):
             "" if self._npcap_ok
             else "Npcap est requis pour capturer le jeu (installeur officiel).")
         self.npcapReady.connect(self.start_live)
+        self.requestQuit.connect(self.quit_app)
+        self._update_available = False
+        self._update_busy = False
+        self._update_msg = ""
+        self._update_tag = ""
+        self._update_zip = ""
+        self._update_html = ""
+        QTimer.singleShot(1500, self.check_for_update)
 
     def _ensure_panel(self, outdir: str) -> FmPanel:
         if self._panel is not None and self._outdir == outdir:
@@ -268,7 +279,7 @@ class FmPanelBridge(QObject):
         if p is not None and getattr(p, "_effects", None):
             self._seen_eids.update(p._effects.keys())
         self.updated.emit()
-        self._schedule_history_save()
+        self._history_dirty = True
 
     @property
     def _p(self) -> Optional[FmPanel]:
@@ -626,6 +637,89 @@ class FmPanelBridge(QObject):
 
         threading.Thread(target=_job, daemon=True).start()
 
+    @Property(str, notify=updateChanged)
+    def appVersion(self) -> str:
+        return APP_VERSION
+
+    @Property(bool, notify=updateChanged)
+    def updateAvailable(self) -> bool:
+        return bool(self._update_available)
+
+    @Property(bool, notify=updateChanged)
+    def updateBusy(self) -> bool:
+        return bool(self._update_busy)
+
+    @Property(str, notify=updateChanged)
+    def updateMessage(self) -> str:
+        return self._update_msg or ""
+
+    @Slot()
+    def checkForUpdate(self):
+        self.check_for_update()
+
+    @Slot()
+    def check_for_update(self):
+        def _job():
+            try:
+                from fm_updater import fetch_latest, is_newer
+                info = fetch_latest()
+                tag = info.get("tag") or ""
+                if tag and is_newer(tag, APP_VERSION):
+                    self._update_available = True
+                    self._update_tag = tag
+                    self._update_zip = info.get("zip_url") or ""
+                    self._update_html = info.get("html_url") or ""
+                    self._update_msg = f"Mise a jour {tag} disponible (tu as {APP_VERSION})."
+                else:
+                    self._update_available = False
+                    self._update_msg = ""
+            except Exception as e:
+                self._update_available = False
+                self._update_msg = ""
+                print("[DOFUS-FM] maj:", e, file=sys.stderr)
+            self.updateChanged.emit()
+
+        threading.Thread(target=_job, daemon=True).start()
+
+    @Slot()
+    def applyUpdate(self):
+        self.apply_update()
+
+    @Slot()
+    def apply_update(self):
+        if self._update_busy:
+            return
+        html = self._update_html or "https://github.com/Fisticent/blank_fm/releases"
+        if not getattr(sys, "frozen", False) or not self._update_zip:
+            QDesktopServices.openUrl(QUrl(html))
+            return
+        self._update_busy = True
+        self._update_msg = "Telechargement de la mise a jour…"
+        self.updateChanged.emit()
+
+        def _job():
+            try:
+                from fm_updater import apply_from_url
+
+                def prog(got: int, total: int) -> None:
+                    if total > 0:
+                        pct = min(99, int(got * 100 / total))
+                        self._update_msg = f"Telechargement {pct} %"
+                    else:
+                        self._update_msg = "Telechargement…"
+                    self.updateChanged.emit()
+
+                apply_from_url(self._update_zip, prog)
+                self._update_msg = "Redemarrage…"
+                self.updateChanged.emit()
+                self.requestQuit.emit()
+            except Exception as e:
+                self._update_busy = False
+                self._update_msg = f"Echec de la maj : {e}"
+                self.updateChanged.emit()
+
+        threading.Thread(target=_job, daemon=True).start()
+
     @Slot()
     def pick_replay(self):
         default = os.path.join(CAPTURES_DIR, "fm_2026-08-20.jsonl")
@@ -739,6 +833,9 @@ class FmPanelBridge(QObject):
     def _on_tick(self):
         if self._idle_should_pause():
             self._freeze_clock()
+        if self._history_dirty:
+            self._history_dirty = False
+            self._save_history()
         self.updated.emit()
 
     def _clock_delta(self) -> float:

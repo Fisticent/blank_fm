@@ -27,7 +27,8 @@ except ImportError:  # permet l'import du module meme sans scapy
 
 PORT_GAME = 5555
 TYPE_URL_MARK = b"type.ankama.com/"
-MAX_FRAME = 10_000_000
+MAX_FRAME = 1_000_000
+MAX_BUF = 2_000_000
 
 
 def read_varint(buf: bytes, i: int = 0) -> tuple[int, int]:
@@ -186,26 +187,111 @@ def decode_kbt(frame: bytes) -> tuple[Optional[int], list[Listing]]:
 
 # ------------------------------------------------------------- flux TCP / parseur
 
+def _take_complete_ankama(buf: bytes) -> Optional[tuple[bytes, bytes]]:
+    """Trouve une trame complete qui contient type.ankama.com."""
+    if not buf or TYPE_URL_MARK not in buf:
+        return None
+    pos = 0
+    while True:
+        mark = buf.find(TYPE_URL_MARK, pos)
+        if mark < 0:
+            return None
+        window_from = max(0, mark - 24)
+        best = None
+        best_ln = -1
+        for start in range(window_from, mark):
+            try:
+                ln, j = read_varint(buf, start)
+            except ValueError:
+                continue
+            if ln <= 0 or ln > MAX_FRAME:
+                continue
+            end = j + ln
+            if end > len(buf):
+                continue
+            dist = mark - j
+            if not (0 <= dist <= 24 and j <= mark < end):
+                continue
+            body = buf[j:end]
+            if body[:1] != b"\x0a":
+                continue
+            if ln > best_ln:
+                best_ln = ln
+                best = (body, buf[end:])
+        if best is not None:
+            return best
+        pos = mark + 1
+
+
 @dataclass
 class TcpStream:
     buf: bytes = b""
 
     def feed(self, payload: bytes) -> list[bytes]:
-        self.buf += payload
+        if payload:
+            self.buf += payload
+        if len(self.buf) > MAX_BUF:
+            nxt = _take_complete_ankama(self.buf)
+            if nxt is not None:
+                body, rest = nxt
+                self.buf = rest
+                return [body] + self._drain()
+            self.buf = self.buf[-64:]
+        return self._drain()
+
+    def _drain(self) -> list[bytes]:
         frames: list[bytes] = []
-        while True:
+        guard = 0
+        while self.buf:
+            guard += 1
+            if guard > 8000:
+                self.buf = b""
+                break
             try:
                 ln, j = read_varint(self.buf, 0)
             except ValueError:
                 break
+            end = j + ln
             if ln <= 0 or ln > MAX_FRAME:
+                nxt = _take_complete_ankama(self.buf[1:])
+                if nxt is not None:
+                    body, rest = nxt
+                    frames.append(body)
+                    self.buf = rest
+                    continue
                 self.buf = self.buf[1:]
                 continue
-            end = j + ln
             if end > len(self.buf):
+                peek = self.buf[j:min(len(self.buf), j + 40)]
+                if len(peek) >= 20 and TYPE_URL_MARK not in peek:
+                    self.buf = self.buf[1:]
+                    continue
+                nxt = _take_complete_ankama(self.buf[1:])
+                if nxt is not None:
+                    body, rest = nxt
+                    frames.append(body)
+                    self.buf = rest
+                    continue
                 break
-            frames.append(self.buf[j:end])
-            self.buf = self.buf[end:]
+            body = self.buf[j:end]
+            mark = body.find(TYPE_URL_MARK)
+            if 0 <= mark <= 24 and body[:1] == b"\x0a":
+                frames.append(body)
+                self.buf = self.buf[end:]
+                continue
+            nxt = _take_complete_ankama(body)
+            if nxt is not None:
+                found, rest_body = nxt
+                frames.append(found)
+                self.buf = rest_body + self.buf[end:]
+                continue
+            nxt = _take_complete_ankama(self.buf[1:])
+            if nxt is not None:
+                found, rest = nxt
+                frames.append(found)
+                self.buf = rest
+                continue
+            self.buf = self.buf[1:]
         return frames
 
 

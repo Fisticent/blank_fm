@@ -11,10 +11,10 @@ Capture le trafic local du jeu. N'envoie rien au serveur.
    L'outil telecharge l'installeur officiel depuis npcap.com
    (on n'a pas le droit de le coller dans ce zip).
    Suivant / Suivant, puis parfois reboot Windows, puis relance DofusFM.exe
-5. Lance Dofus, ouvre la forgemagie, pose des runes. L'outil se met a jour.
-   Si Dofus a patch le proto, une pose de rune connue reapprend les messages.
+5. Lance Dofus, ouvre la forgemagie, pose des runes.
+6. Au prochain lancement, si une maj GitHub existe : bandeau vert, clic, c'est installe.
 
-Mises a jour : https://github.com/Fisticent/blank_fm/releases
+Mises a jour : bandeau dans l'outil, ou https://github.com/Fisticent/blank_fm/releases
 
 Windows Defender peut gueuler au premier lancement (normal avec ce type
 d'outil). Ajoute le dossier en exclusion si besoin.

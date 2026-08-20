@@ -11,7 +11,7 @@ ApplicationWindow {
     minimumWidth: 820
     minimumHeight: 560
     color: Colors.bg
-    title: app.itemGid > 0 ? ("Dofus FM - " + app.itemName) : "Dofus FM"
+    title: app.itemGid > 0 ? ("Dofus FM " + app.appVersion + " - " + app.itemName) : ("Dofus FM " + app.appVersion)
     property int mainTab: 0
 
     onClosing: function(close) {
@@ -49,8 +49,42 @@ ApplicationWindow {
         color: Colors.bg
 
         Rectangle {
-            id: npcapBanner
+            id: updateBanner
             anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: (app.updateAvailable || app.updateBusy) ? 48 : 0
+            visible: height > 0
+            clip: true
+            color: Colors.primary
+            Row {
+                anchors.fill: parent
+                anchors.leftMargin: 12
+                anchors.rightMargin: 12
+                spacing: 10
+                Text {
+                    text: app.updateMessage
+                    color: Colors.text_on_accent
+                    font.family: Colors.font_family
+                    font.pixelSize: Colors.font_size_ui
+                    font.bold: true
+                    elide: Text.ElideRight
+                    width: Math.max(80, parent.width - 170)
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                ThemedButton {
+                    label: app.updateBusy ? "Patiente…" : "Mettre a jour"
+                    enabled: !app.updateBusy && app.updateAvailable
+                    accent: true
+                    onClicked: app.applyUpdate()
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+        }
+
+        Rectangle {
+            id: npcapBanner
+            anchors.top: updateBanner.bottom
             anchors.left: parent.left
             anchors.right: parent.right
             height: app.npcapInstalled ? 0 : 48
@@ -985,12 +1019,38 @@ ApplicationWindow {
                     title: "PROTOCOLE"
                     Text {
                         anchors.fill: parent
-                        text: app.protoStatus || "Les noms de messages se réapprennent tout seuls à la pose d'une rune si Dofus patch."
+                        text: app.protoStatus || "Noms de messages figes (kfb / kdr / iuj). Un proto Dofus different peut casser la lecture jusqu'a un patch de l'outil."
                         color: Colors.text_muted
                         font.family: Colors.font_family
                         font.pixelSize: Colors.font_size_secondary
                         wrapMode: Text.WordWrap
                         verticalAlignment: Text.AlignVCenter
+                    }
+                }
+
+                SectionCard {
+                    width: parent.width
+                    height: 72
+                    title: "VERSION"
+                    Row {
+                        anchors.fill: parent
+                        spacing: 10
+                        Text {
+                            text: "Dofus FM " + app.appVersion + (app.updateAvailable ? (" · " + app.updateMessage) : " · a jour au lancement.")
+                            color: Colors.text
+                            font.family: Colors.font_family
+                            font.pixelSize: Colors.font_size_ui
+                            wrapMode: Text.WordWrap
+                            width: parent.width - 180
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        ThemedButton {
+                            label: app.updateAvailable ? (app.updateBusy ? "Patiente…" : "Mettre a jour") : "Verifier"
+                            enabled: !app.updateBusy
+                            accent: app.updateAvailable
+                            onClicked: app.updateAvailable ? app.applyUpdate() : app.checkForUpdate()
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
                     }
                 }
 

@@ -134,6 +134,14 @@ def item_name(gid: int) -> str:
     _ensure_items_enriched()
     return ITEMS.get(gid, f"gid {gid}")
 
+
+def known_item_gid(gid: int) -> bool:
+    """True si le GID est un item du catalogue (items.json), pas une rune."""
+    if not gid:
+        return False
+    _ensure_items_enriched()
+    return gid in ITEMS and gid not in RUNES
+
 # effectId -> nom (numerotation dofusdb, pas les actionIds classiques) ;
 # d'abord les stats derivees des runes (runes.json), puis les noms connus
 # en priorite pour les stats deja identifiees en session.

@@ -31,13 +31,13 @@ try:
 except ImportError:
     Raw = TCP = IP = sniff = None
 
-from fm_live import TcpStream, extract_envelope
+from fm_live import TcpStream, extract_envelope, TYPE_URL_MARK
 from fm_decoder import (EFFECTS, ITEMS, RUNES, MALUS_EFFECTS, effect_name,
-                        effect_str, item_name)
+                        effect_str, item_name, known_item_gid)
 from fetch_runes import rune_weight
 from item_jet import get_template, global_jet_pct
 from paths import data_file, SCRATCH_DIR
-from proto_learn import PROTO, classify_payload
+from proto_learn import PROTO, classify_payload, DEFAULT_MAP
 
 PORT_GAME = 5555
 FORGE_SLOT = 63   # emplacement de l'item dans l'interface de forgemagie
@@ -124,6 +124,7 @@ class FmPanel:
         self.poses = 0
         self.event_no = 0
         self.proto_status = PROTO.status()
+        self._log_since_flush = 0
 
     def close(self) -> None:
         if self._log:
@@ -131,18 +132,37 @@ class FmPanel:
 
     # --- flux ---
     def feed(self, direction: str, data: bytes, flow_key: tuple) -> None:
-        stream = self.flows.setdefault(flow_key, TcpStream())
+        if flow_key in self.flows:
+            stream = self.flows.pop(flow_key)
+            self.flows[flow_key] = stream
+        else:
+            if len(self.flows) >= 8:
+                oldest = next(iter(self.flows))
+                del self.flows[oldest]
+            stream = self.flows.setdefault(flow_key, TcpStream())
         for frame in stream.feed(data):
-            self._frame(direction, frame)
+            try:
+                self._frame(direction, frame)
+            except Exception:
+                continue
 
     def _frame(self, direction: str, frame: bytes) -> None:
+        if not frame:
+            return
+        if len(frame) > 64 and TYPE_URL_MARK not in frame:
+            return
         url, payload = extract_envelope(frame)
         name = url.rsplit("/", 1)[-1] if url else "?"
         if payload is None:
             return
+        known = set(DEFAULT_MAP.values())
+        known.update(PROTO.names.values())
+        if name not in known and len(payload) > 400:
+            return
         rec = {"ts": datetime.now().isoformat(timespec="milliseconds"),
                "dir": direction, "url": url, "type": name,
-               "frame_hex": frame.hex(), "payload_hex": payload.hex()}
+               "frame_hex": frame.hex() if len(frame) <= 8000 else "",
+               "payload_hex": payload.hex() if len(payload) <= 8000 else ""}
         hit = classify_payload(name, payload, direction)
         kind = hit[0] if hit else None
         obj = hit[1] if hit else None
@@ -151,8 +171,15 @@ class FmPanel:
             rec["frame_hex"] = ""
             rec["payload_hex"] = ""
             rec["n_prices"] = len(ivi_batch or {})
-        self._log.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        self._log.flush()
+        if kind or name in known:
+            try:
+                self._log.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                self._log_since_flush += 1
+                if self._log_since_flush >= 20:
+                    self._log.flush()
+                    self._log_since_flush = 0
+            except OSError:
+                pass
         self.n += 1
         if PROTO.learned:
             self.proto_status = PROTO.status()
@@ -162,7 +189,7 @@ class FmPanel:
         elif kind == "item_state" and obj:
             st = obj
             pending = self._rune
-            if self._is_other_item(st):
+            if known_item_gid(getattr(st, "gid", 0)) and self._is_other_item(st):
                 self._switch_item(st)
                 self._rune = pending
             if self._rune:
@@ -176,7 +203,7 @@ class FmPanel:
                     self.puit = st.puit
                 if st.uid:
                     self.item_uid = st.uid
-                if not self.item_gid and st.gid:
+                if not self.item_gid and known_item_gid(st.gid):
                     self.item_gid = st.gid
                     self.item_name = item_name(st.gid)
                     self._load_template()
@@ -191,7 +218,7 @@ class FmPanel:
                 self._apply_prices({self._pending_price_gid: int(obj)})
         elif kind == "inventory" and obj:
             st = obj
-            if st.gid and self._is_forge_inv(st):
+            if known_item_gid(st.gid) and self._is_forge_inv(st):
                 if self._is_other_item(st):
                     self._switch_item(st)
                 else:
@@ -253,13 +280,16 @@ class FmPanel:
         self.event_no = 0
 
     def _load_template(self) -> None:
-        """Jet mini->maxi de l'item (items.json, sinon fetch dofusdb)."""
+        """Jet mini->maxi de l'item (items.json uniquement, pas de fetch live)."""
         if self._template_loaded:
             return
         self._template_loaded = True
+        if not known_item_gid(self.item_gid):
+            self._template = None
+            return
         try:
             self._template = get_template(self.item_gid)
-        except Exception as e:
+        except Exception:
             self._template = None
 
     def _jet_pct(self) -> Optional[float]:

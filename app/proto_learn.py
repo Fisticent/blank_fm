@@ -14,7 +14,8 @@ from typing import Optional
 from sniffer_hdv import parse_message
 from fm_decoder import (
     RUNES, EFFECTS, ITEMS, RuneUse, ItemState,
-    parse_kfb, parse_kdr, parse_iuj, _ensure_effects_loaded, _ensure_items_enriched,
+    parse_kfb, parse_kdr, parse_iuj, known_item_gid,
+    _ensure_effects_loaded, _ensure_items_enriched,
 )
 from fm_cost import parse_ivi
 from paths import PROJECT_DIR, data_file
@@ -132,7 +133,7 @@ def parse_item_state_any(payload: bytes) -> Optional[ItemState]:
 
 def parse_iuj_only(payload: bytes) -> Optional[ItemState]:
     st = parse_iuj(payload)
-    if st and st.gid and st.slot and st.gid not in RUNES:
+    if st and known_item_gid(st.gid) and st.slot:
         return st
     return None
 
@@ -152,7 +153,7 @@ def parse_inventory_any(payload: bytes) -> Optional[ItemState]:
         if s is not None and 1 <= int(s) <= 128:
             slot = int(s)
         g = d.get(1)
-        if g in ITEMS or (g and g not in RUNES and int(g) > 1000):
+        if g in ITEMS:
             if g and int(g) > 200:
                 gid = int(g)
                 uid = int(d.get(4) or uid)
@@ -180,8 +181,13 @@ class ProtocolMap:
             if not isinstance(data, dict):
                 continue
             for k, v in data.items():
-                if k in self.names and isinstance(v, str) and v:
-                    self.names[k] = v
+                if k not in self.names or not isinstance(v, str) or not v:
+                    continue
+                # kfb/kdr/iuj : ignorer une map corrompue (ivx, kti, etc.).
+                if k in ("rune_echo", "item_state", "inventory"):
+                    if v != DEFAULT_MAP[k]:
+                        continue
+                self.names[k] = v
             break
 
     def save(self) -> None:
@@ -195,18 +201,13 @@ class ProtocolMap:
             pass
 
     def bind(self, role: str, name: str) -> bool:
+        """N'enregistre que les noms canoniques kfb/kdr/iuj. Pas d'apprentissage sauvage."""
         if role not in self.names or not name or name == "?":
             return False
         if self.names.get(role) == name:
             return False
-        current = self.names.get(role)
-        canonical = DEFAULT_MAP.get(role)
-        # Les vrais noms (kfb/kdr/iuj) reparsent toujours une map corrompue.
-        if name != canonical:
-            if current == canonical and canonical in self.seen:
-                return False
-            if current and current in self.seen and current != name:
-                return False
+        if name != DEFAULT_MAP.get(role):
+            return False
         self.names[role] = name
         self.learned = True
         self.save()
@@ -275,7 +276,7 @@ def _as_role(role: str, payload: bytes, direction: str):
 
 
 def classify_payload(name: str, payload: bytes, direction: str):
-    """kfb/kdr/iuj d'abord, puis la map, puis apprentissage sur les noms inconnus."""
+    """kfb/kdr/iuj uniquement. Pas d'apprentissage sur le reste du proto."""
     if not payload:
         return None
     if name and name != "?":
@@ -296,34 +297,5 @@ def classify_payload(name: str, payload: bytes, direction: str):
             return hit
         return None
 
-    if direction == "c2s" and 20 <= len(payload) <= 80:
-        hit = _as_role("object_use", payload, direction)
-        if hit:
-            PROTO.bind("object_use", name)
-            return hit
-
-    if len(payload) >= 200:
-        prices = parse_ivi(payload)
-        if len(prices) >= 20:
-            PROTO.bind("prices", name)
-            return ("prices", prices)
-
-    if len(payload) > 400:
-        return None
-
-    ru = parse_rune_any(payload)
-    if ru and ru.gid in RUNES:
-        PROTO.bind("rune_echo", name)
-        return ("rune_echo", ru)
-
-    st = parse_item_state_any(payload)
-    if st and st.puit is not None:
-        PROTO.bind("item_state", name)
-        return ("item_state", st)
-
-    inv = parse_iuj_only(payload)
-    if inv:
-        PROTO.bind("inventory", name)
-        return ("inventory", inv)
-
+    # Pas d'apprentissage sur le trafic hors FM (combat, map, inventaire).
     return None

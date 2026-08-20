@@ -28,6 +28,7 @@ hiddenimports = [
     "paths",
     "npcap_setup",
     "proto_learn",
+    "fm_updater",
     "PySide6.QtCore",
     "PySide6.QtGui",
     "PySide6.QtWidgets",
