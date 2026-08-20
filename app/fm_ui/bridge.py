@@ -31,6 +31,7 @@ SETTINGS_PATH = os.path.join(PROJECT_DIR, "fm_settings.json")
 HISTORY_PATH = os.path.join(PROJECT_DIR, "fm_history.json")
 MAX_RECENT = 10
 MAX_HISTORY_POSES = 80
+IDLE_PAUSE_SEC = 10.0
 
 EXO_TRACK = (
     (111, "PA"),
@@ -130,6 +131,11 @@ class FmPanelBridge(QObject):
         self._items_db: Optional[dict] = None
         self._t0 = datetime.now()
         self._t_item = datetime.now()
+        self._elapsed_session = 0.0
+        self._elapsed_item = 0.0
+        self._clock_anchor = datetime.now()
+        self._clock_paused = False
+        self._last_rune_at = None
         self._exo = _empty_exo_counts()
         self._exo_pending_cost = 0
         self._exo_last_cost = 0
@@ -225,6 +231,8 @@ class FmPanelBridge(QObject):
                                 rec["landed"] += 1
                     except Exception as e:
                         print("[DOFUS-FM] exo attempt:", e, file=sys.stderr)
+            if rune:
+                self._on_rune_posed()
             if rune and before is not None and after is not None:
                 try:
                     lost, exo, exo_fail = eval_cues(
@@ -308,6 +316,10 @@ class FmPanelBridge(QObject):
             "exo_last_cost": int(self._exo_last_cost),
             "seen_eids": [int(x) for x in sorted(self._seen_eids)],
             "t_item": self._t_item,
+            "elapsed_item": self._item_seconds(),
+            "effects": dict(getattr(p, "_effects", None) or {}),
+            "puit": getattr(p, "puit", None),
+            "item_slot": int(getattr(p, "item_slot", 0) or 0),
         }
 
     def _stash_current_session(self) -> None:
@@ -343,6 +355,7 @@ class FmPanelBridge(QObject):
             "seen_eids": seen,
             "events": rec.get("events"),
             "t_item": rec.get("t_item"),
+            "elapsed_item": rec.get("elapsed_item"),
         }
 
     def _apply_session(self, s: dict) -> None:
@@ -391,9 +404,40 @@ class FmPanelBridge(QObject):
         except (TypeError, ValueError):
             self._exo_last_cost = 0
         self._seen_eids = {int(x) for x in (s.get("seen_eids") or [])}
-        t_item = s.get("t_item")
-        if isinstance(t_item, datetime):
-            self._t_item = t_item
+        elapsed_item = s.get("elapsed_item")
+        try:
+            elapsed_item_f = float(elapsed_item) if elapsed_item is not None else -1.0
+        except (TypeError, ValueError):
+            elapsed_item_f = -1.0
+        if elapsed_item_f >= 0:
+            self._reanchor_item(elapsed_item_f)
+        else:
+            t_item = s.get("t_item")
+            if isinstance(t_item, datetime):
+                self._reanchor_item(
+                    max(0.0, (datetime.now() - t_item).total_seconds()))
+            else:
+                self._reanchor_item(0.0)
+        eff = s.get("effects")
+        if isinstance(eff, dict) and eff:
+            p._effects = {int(k): int(v) for k, v in eff.items()}
+        elif events:
+            last = events[-1]
+            if len(last) >= 5 and isinstance(last[4], dict):
+                p._effects = dict(last[4])
+        puit = s.get("puit")
+        if puit is not None:
+            try:
+                p.puit = float(puit)
+                p.puit_prev = p.puit
+            except (TypeError, ValueError):
+                pass
+        slot = s.get("item_slot")
+        if slot:
+            try:
+                p.item_slot = int(slot)
+            except (TypeError, ValueError):
+                pass
 
     def _restore_session(self, uid: int, gid: int) -> None:
         self._history_override = []
@@ -405,7 +449,7 @@ class FmPanelBridge(QObject):
             self._exo = _empty_exo_counts()
             self._exo_pending_cost = 0
             self._exo_last_cost = 0
-            self._t_item = datetime.now()
+            self._reanchor_item(0.0)
             return
         self._apply_session(saved)
 
@@ -430,7 +474,7 @@ class FmPanelBridge(QObject):
         self._exo_last_cost = 0
         self._history_override = []
         self._seen_eids = set((getattr(p, "_effects", None) or {}).keys())
-        self._t_item = datetime.now()
+        self._reanchor_item(0.0)
 
     @Slot()
     def reset_item_session(self):
@@ -485,8 +529,7 @@ class FmPanelBridge(QObject):
         self.npcapChanged.emit()
         self._begin_session()
         self._ensure_panel(os.path.join(SCRATCH_DIR, "ui_live"))
-        self._t0 = datetime.now()
-        self._t_item = datetime.now()
+        self._reset_session_clock()
         stop = self._stop
         self._thread = threading.Thread(
             target=self._run_live, args=(stop,), daemon=True)
@@ -598,8 +641,7 @@ class FmPanelBridge(QObject):
             return
         self._begin_session()
         self._ensure_panel(os.path.join(SCRATCH_DIR, "ui_replay"))
-        self._t0 = datetime.now()
-        self._t_item = datetime.now()
+        self._reset_session_clock()
         stop = self._stop
         self._thread = threading.Thread(
             target=self._run_replay, args=(path, stop), daemon=True)
@@ -695,15 +737,77 @@ class FmPanelBridge(QObject):
         self.updated.emit()
 
     def _on_tick(self):
+        if self._idle_should_pause():
+            self._freeze_clock()
         self.updated.emit()
+
+    def _clock_delta(self) -> float:
+        if self._clock_paused or self._clock_anchor is None:
+            return 0.0
+        return max(0.0, (datetime.now() - self._clock_anchor).total_seconds())
+
+    def _session_seconds(self) -> float:
+        return self._elapsed_session + self._clock_delta()
+
+    def _item_seconds(self) -> float:
+        return self._elapsed_item + self._clock_delta()
+
+    def _freeze_clock(self) -> None:
+        extra = self._clock_delta()
+        self._elapsed_session += extra
+        self._elapsed_item += extra
+        self._clock_anchor = None
+        self._clock_paused = True
+
+    def _resume_clock(self) -> None:
+        if not self._clock_paused and self._clock_anchor is not None:
+            return
+        self._clock_paused = False
+        self._clock_anchor = datetime.now()
+
+    def _reset_session_clock(self) -> None:
+        now = datetime.now()
+        self._elapsed_session = 0.0
+        self._elapsed_item = 0.0
+        self._clock_paused = False
+        self._clock_anchor = now
+        self._last_rune_at = None
+        self._t0 = now
+        self._t_item = now
+
+    def _reanchor_item(self, elapsed: float) -> None:
+        extra = self._clock_delta()
+        self._elapsed_session += extra
+        self._elapsed_item = max(0.0, float(elapsed or 0))
+        if not self._clock_paused:
+            self._clock_anchor = datetime.now()
+        self._t_item = datetime.now()
+
+    def _on_rune_posed(self) -> None:
+        self._last_rune_at = datetime.now()
+        self._resume_clock()
+
+    def _idle_should_pause(self) -> bool:
+        if self._clock_paused:
+            return False
+        now = datetime.now()
+        last = self._last_rune_at
+        if last is None:
+            start = self._clock_anchor or self._t0
+            return (now - start).total_seconds() >= IDLE_PAUSE_SEC
+        return (now - last).total_seconds() >= IDLE_PAUSE_SEC
 
     @Property(str, notify=updated)
     def sessionDuration(self) -> str:
-        return _fmt_duration((datetime.now() - self._t0).total_seconds())
+        return _fmt_duration(self._session_seconds())
 
     @Property(str, notify=updated)
     def itemDuration(self) -> str:
-        return _fmt_duration((datetime.now() - self._t_item).total_seconds())
+        return _fmt_duration(self._item_seconds())
+
+    @Property(bool, notify=updated)
+    def timerPaused(self) -> bool:
+        return bool(self._clock_paused)
 
     @Property(str, notify=updated)
     def statusText(self) -> str:
@@ -1125,6 +1229,7 @@ class FmPanelBridge(QObject):
             "reliquat_cumul": float(getattr(p, "reliquat_cumul", 0) or 0),
             "seen_eids": [int(x) for x in sorted(self._seen_eids)],
             "event_no": int(getattr(p, "event_no", 0) or 0),
+            "elapsed_item": self._item_seconds(),
             "current": False,
             "ts": datetime.now().isoformat(timespec="seconds"),
             "history": self._panel_history_rows(p),

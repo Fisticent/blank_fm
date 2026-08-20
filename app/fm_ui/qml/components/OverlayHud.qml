@@ -209,8 +209,8 @@ Window {
                 font.pixelSize: Colors.font_size_secondary
             }
             Text {
-                text: "Session  " + app.sessionDuration
-                color: Colors.primary_bright
+                text: "Session  " + app.sessionDuration + (app.timerPaused ? "  pause" : "")
+                color: app.timerPaused ? Colors.text_muted : Colors.primary_bright
                 font.family: Colors.font_family
                 font.pixelSize: Colors.font_size_ui
                 font.bold: true

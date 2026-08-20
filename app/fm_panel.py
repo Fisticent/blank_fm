@@ -165,7 +165,22 @@ class FmPanel:
             if self._is_other_item(st):
                 self._switch_item(st)
                 self._rune = pending
-            self._on_state(st, rec["ts"])
+            if self._rune:
+                self._on_state(st, rec["ts"])
+            else:
+                if st.effects:
+                    self._effects = dict(st.effects)
+                if st.puit is not None:
+                    if self.puit_prev is None:
+                        self.puit_prev = st.puit
+                    self.puit = st.puit
+                if st.uid:
+                    self.item_uid = st.uid
+                if not self.item_gid and st.gid:
+                    self.item_gid = st.gid
+                    self.item_name = item_name(st.gid)
+                    self._load_template()
+                self._render()
         elif kind == "prices":
             if ivi_batch:
                 self._apply_prices(ivi_batch)
@@ -176,22 +191,31 @@ class FmPanel:
                 self._apply_prices({self._pending_price_gid: int(obj)})
         elif kind == "inventory" and obj:
             st = obj
-            if st.gid:
-                if st.slot == FORGE_SLOT:
-                    if self._is_other_item(st):
-                        self._switch_item(st)
-                    self.item_slot = st.slot
+            if st.gid and self._is_forge_inv(st):
+                if self._is_other_item(st):
+                    self._switch_item(st)
+                else:
                     if st.uid:
                         self.item_uid = st.uid
-                    if self._effects is None and st.effects:
-                        self._effects = dict(st.effects)
-                    self._render()
-                elif not self.item_gid:
-                    self.item_gid, self.item_uid, self.item_slot = \
-                        st.gid, st.uid, st.slot
-                    self.item_name = item_name(st.gid)
-                    self._load_template()
-                    self._render()
+                    if st.slot:
+                        self.item_slot = st.slot
+                    if st.gid and st.gid != self.item_gid:
+                        self.item_gid = st.gid
+                        self.item_name = item_name(st.gid)
+                        self._template_loaded = False
+                        self._load_template()
+                if st.effects:
+                    self._effects = dict(st.effects)
+                self._render()
+
+    def _is_forge_inv(self, st) -> bool:
+        """Item pose dans la forge (slot 63), ou meme slot que l'item courant."""
+        slot = getattr(st, "slot", 0) or 0
+        if slot == FORGE_SLOT:
+            return True
+        if self.item_slot and slot == self.item_slot:
+            return True
+        return False
 
     def _is_other_item(self, st) -> bool:
         """True si st n'est pas l'item actuellement en forge (gid ou uid)."""

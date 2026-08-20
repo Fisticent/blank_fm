@@ -95,11 +95,14 @@ def _floats(buf: bytes) -> list[float]:
 
 
 def parse_rune_any(payload: bytes) -> Optional[RuneUse]:
+    """Echo de rune. kfb est petit ; on n'ouvre pas les dumps d'inventaire."""
     ru = parse_kfb(payload)
     if ru and ru.gid in RUNES:
         if not ru.effect_id:
             ru.effect_id = int(getattr(ru, "effect_id", 0) or 0)
         return ru
+    if not payload or len(payload) > 160:
+        return None
     rune_gids = RUNES
     for fields in _walk(payload):
         d = {f: v for f, w, v in fields if w == 0}
@@ -120,33 +123,16 @@ def parse_rune_any(payload: bytes) -> Optional[RuneUse]:
 
 
 def parse_item_state_any(payload: bytes) -> Optional[ItemState]:
-    """Etat apres pose : GID + effets + puits (float). Sans puits ce n'est pas kdr."""
+    """Etat forge (kdr). Le puits peut manquer a la pose de l'item."""
     st = parse_kdr(payload)
-    if st and st.puit is not None:
+    if st and (st.puit is not None or st.gid or st.effects):
         return st
-    if len(payload) > 2000:
-        return None
-    puits = _floats(payload)
-    if not puits:
-        return None
-    effects = _collect_effects(payload)
-    gid = uid = 0
-    _ensure_items_enriched()
-    for fields in _walk(payload):
-        d = {f: v for f, w, v in fields if w == 0}
-        g = d.get(1)
-        if g and g not in RUNES and (g in ITEMS or int(g) > 100):
-            gid = int(g)
-            uid = int(d.get(4) or uid)
-            break
-    if not effects and not gid:
-        return None
-    return ItemState(gid=gid, uid=uid, slot=0, state=0, puit=puits[0], effects=effects)
+    return None
 
 
 def parse_iuj_only(payload: bytes) -> Optional[ItemState]:
     st = parse_iuj(payload)
-    if st and st.gid and st.slot:
+    if st and st.gid and st.slot and st.gid not in RUNES:
         return st
     return None
 
@@ -181,6 +167,7 @@ class ProtocolMap:
     def __init__(self):
         self.names = dict(DEFAULT_MAP)
         self.learned = False
+        self.seen: set[str] = set()
         self._load()
 
     def _load(self) -> None:
@@ -212,6 +199,14 @@ class ProtocolMap:
             return False
         if self.names.get(role) == name:
             return False
+        current = self.names.get(role)
+        canonical = DEFAULT_MAP.get(role)
+        # Les vrais noms (kfb/kdr/iuj) reparsent toujours une map corrompue.
+        if name != canonical:
+            if current == canonical and canonical in self.seen:
+                return False
+            if current and current in self.seen and current != name:
+                return False
         self.names[role] = name
         self.learned = True
         self.save()
@@ -231,19 +226,81 @@ class ProtocolMap:
 
 
 PROTO = ProtocolMap()
+_DEFAULT_ROLE = {v: k for k, v in DEFAULT_MAP.items()}
+
+
+def _as_role(role: str, payload: bytes, direction: str):
+    """Parse strict d'un role, sans apprentissage."""
+    if role == "prices":
+        prices = parse_ivi(payload)
+        if prices:
+            return ("prices", prices)
+        return None
+    if role == "price_gid":
+        d = {f: v for f, w, v in parse_message(payload) if w == 0}
+        if d.get(1):
+            return ("price_gid", int(d[1]))
+        return None
+    if role == "price_val":
+        d = {f: v for f, w, v in parse_message(payload) if w == 0}
+        if d.get(1) is not None:
+            return ("price_val", int(d[1]))
+        return None
+    if role == "object_use":
+        if direction == "c2s" and 20 <= len(payload) <= 80:
+            d = _fields0(payload)
+            if d.get(3) == 1 and d.get(1) and set(d.keys()) <= {1, 3, 6}:
+                return ("object_use", d.get(1))
+        return None
+    if role == "rune_echo":
+        ru = parse_rune_any(payload)
+        if ru and ru.gid in RUNES:
+            return ("rune_echo", ru)
+        # kfb sert aussi a l'echo de l'item pose dans la forge.
+        inv = parse_iuj_only(payload)
+        if inv:
+            return ("inventory", inv)
+        return None
+    if role == "item_state":
+        st = parse_item_state_any(payload)
+        if st:
+            return ("item_state", st)
+        return None
+    if role == "inventory":
+        inv = parse_iuj_only(payload)
+        if inv:
+            return ("inventory", inv)
+        return None
+    return None
 
 
 def classify_payload(name: str, payload: bytes, direction: str):
-    """Identifie un message FM par structure, puis met a jour la map des noms."""
+    """kfb/kdr/iuj d'abord, puis la map, puis apprentissage sur les noms inconnus."""
     if not payload:
         return None
-    role = PROTO.role_of(name)
+    if name and name != "?":
+        PROTO.seen.add(name)
+
+    canonical_role = _DEFAULT_ROLE.get(name)
+    if canonical_role:
+        hit = _as_role(canonical_role, payload, direction)
+        if hit:
+            if hit[0] == canonical_role:
+                PROTO.bind(hit[0], name)
+            return hit
+
+    mapped_role = PROTO.role_of(name)
+    if mapped_role and mapped_role != canonical_role:
+        hit = _as_role(mapped_role, payload, direction)
+        if hit:
+            return hit
+        return None
 
     if direction == "c2s" and 20 <= len(payload) <= 80:
-        d = _fields0(payload)
-        if d.get(3) == 1 and d.get(1) and set(d.keys()) <= {1, 3, 6}:
+        hit = _as_role("object_use", payload, direction)
+        if hit:
             PROTO.bind("object_use", name)
-            return ("object_use", d.get(1))
+            return hit
 
     if len(payload) >= 200:
         prices = parse_ivi(payload)
@@ -251,39 +308,22 @@ def classify_payload(name: str, payload: bytes, direction: str):
             PROTO.bind("prices", name)
             return ("prices", prices)
 
-    if role == "prices" or name == PROTO.names["prices"]:
-        prices = parse_ivi(payload)
-        if prices:
-            return ("prices", prices)
-
-    if role == "price_gid" or name == PROTO.names["price_gid"]:
-        d = {f: v for f, w, v in parse_message(payload) if w == 0}
-        if d.get(1):
-            return ("price_gid", int(d[1]))
-
-    if role == "price_val" or name == PROTO.names["price_val"]:
-        d = {f: v for f, w, v in parse_message(payload) if w == 0}
-        if d.get(1) is not None:
-            return ("price_val", int(d[1]))
+    if len(payload) > 400:
+        return None
 
     ru = parse_rune_any(payload)
     if ru and ru.gid in RUNES:
         PROTO.bind("rune_echo", name)
         return ("rune_echo", ru)
 
-    inv = parse_iuj_only(payload)
-    if inv and inv.gid and inv.slot:
-        PROTO.bind("inventory", name)
-        return ("inventory", inv)
-
     st = parse_item_state_any(payload)
     if st and st.puit is not None:
         PROTO.bind("item_state", name)
         return ("item_state", st)
 
-    inv2 = parse_inventory_any(payload)
-    if inv2 and inv2.gid and inv2.gid not in RUNES:
+    inv = parse_iuj_only(payload)
+    if inv:
         PROTO.bind("inventory", name)
-        return ("inventory", inv2)
+        return ("inventory", inv)
 
     return None

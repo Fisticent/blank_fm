@@ -316,8 +316,8 @@ ApplicationWindow {
                             anchors.fill: parent
                             spacing: 4
                             Text {
-                                text: "Session " + app.sessionDuration
-                                color: Colors.text
+                                text: "Session " + app.sessionDuration + (app.timerPaused ? "  pause" : "")
+                                color: app.timerPaused ? Colors.text_muted : Colors.text
                                 font.family: Colors.font_family
                                 font.pixelSize: Colors.font_size_heading
                                 font.bold: true

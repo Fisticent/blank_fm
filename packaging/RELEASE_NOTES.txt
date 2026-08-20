@@ -1,0 +1,12 @@
+Outil Forgemagie Dofus 3 (Windows), v1.0.1
+
+- Dezippe, lance DofusFM.exe, accepte l'admin
+- Bouton Installer Npcap si besoin (telecharge l'installeur officiel)
+- Overlay, cout des tentas, reset
+- Changement d'item en forge : plus casse par l'apprentissage proto
+- Chrono session/item en pause apres 10s sans rune, reprend a la pose
+- Si Dofus change les noms de messages, une pose de rune connue reapprend le proto
+
+Si tu avais v1.0.0 : remplace le dossier, tu peux supprimer protocol_map.json a cote de l'exe.
+
+Npcap n'est pas dans le zip (licence). Capture passive, rien n'est envoye au serveur.
