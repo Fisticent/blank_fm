@@ -1,0 +1,20 @@
+Dofus FM
+========
+
+Outil Forgemagie Dofus 3 (lecture des poses, cout, tentatives d'exo).
+Capture le trafic local du jeu. N'envoie rien au serveur.
+
+1. Dezippe ce dossier ou tu veux.
+2. Double-clic sur DofusFM.exe
+3. Accepte le UAC (admin), c'est obligatoire pour la capture.
+4. Si Npcap n'est pas installe : bouton "Installer Npcap".
+   L'outil telecharge l'installeur officiel depuis npcap.com
+   (on n'a pas le droit de le coller dans ce zip).
+   Suivant / Suivant, puis parfois reboot Windows, puis relance DofusFM.exe
+5. Lance Dofus, ouvre la forgemagie, pose des runes. L'outil se met a jour.
+
+Windows Defender peut gueuler au premier lancement (normal avec ce type
+d'outil). Ajoute le dossier en exclusion si besoin.
+
+Npcap : https://npcap.com/#download
+Licence Npcap gratuite : usage perso, pas de redistrib de leur installeur.

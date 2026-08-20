@@ -1,0 +1,770 @@
+{
+ "1519": {
+  "effectId": 118,
+  "effect_name": "Force",
+  "icon": 78043,
+  "level": 1,
+  "name": "Rune Fo",
+  "value": 1
+ },
+ "1521": {
+  "effectId": 124,
+  "effect_name": "Sagesse",
+  "icon": 78049,
+  "level": 15,
+  "name": "Rune Sa",
+  "value": 1
+ },
+ "1522": {
+  "effectId": 126,
+  "effect_name": "Intelligence",
+  "icon": 78037,
+  "level": 1,
+  "name": "Rune Ine",
+  "value": 1
+ },
+ "1523": {
+  "effectId": 125,
+  "effect_name": "Vitalité",
+  "icon": 78052,
+  "level": 1,
+  "name": "Rune Vi",
+  "value": 5
+ },
+ "1524": {
+  "effectId": 119,
+  "effect_name": "Agilité",
+  "icon": 78046,
+  "level": 1,
+  "name": "Rune Age",
+  "value": 1
+ },
+ "1525": {
+  "effectId": 123,
+  "effect_name": "Chance",
+  "icon": 78040,
+  "level": 1,
+  "name": "Rune Cha",
+  "value": 1
+ },
+ "1545": {
+  "effectId": 118,
+  "effect_name": "Force",
+  "icon": 78044,
+  "level": 5,
+  "name": "Rune Pa Fo",
+  "value": 3
+ },
+ "1546": {
+  "effectId": 124,
+  "effect_name": "Sagesse",
+  "icon": 78050,
+  "level": 20,
+  "name": "Rune Pa Sa",
+  "value": 3
+ },
+ "1547": {
+  "effectId": 126,
+  "effect_name": "Intelligence",
+  "icon": 78038,
+  "level": 5,
+  "name": "Rune Pa Ine",
+  "value": 3
+ },
+ "1548": {
+  "effectId": 125,
+  "effect_name": "Vitalité",
+  "icon": 78053,
+  "level": 5,
+  "name": "Rune Pa Vi",
+  "value": 15
+ },
+ "1549": {
+  "effectId": 119,
+  "effect_name": "Agilité",
+  "icon": 78047,
+  "level": 5,
+  "name": "Rune Pa Age",
+  "value": 3
+ },
+ "1550": {
+  "effectId": 123,
+  "effect_name": "Chance",
+  "icon": 78041,
+  "level": 5,
+  "name": "Rune Pa Cha",
+  "value": 3
+ },
+ "1551": {
+  "effectId": 118,
+  "effect_name": "Force",
+  "icon": 78045,
+  "level": 10,
+  "name": "Rune Ra Fo",
+  "value": 10
+ },
+ "1552": {
+  "effectId": 124,
+  "effect_name": "Sagesse",
+  "icon": 78051,
+  "level": 25,
+  "name": "Rune Ra Sa",
+  "value": 10
+ },
+ "1553": {
+  "effectId": 126,
+  "effect_name": "Intelligence",
+  "icon": 78039,
+  "level": 10,
+  "name": "Rune Ra Ine",
+  "value": 10
+ },
+ "1554": {
+  "effectId": 125,
+  "effect_name": "Vitalité",
+  "icon": 78054,
+  "level": 10,
+  "name": "Rune Ra Vi",
+  "value": 50
+ },
+ "1555": {
+  "effectId": 119,
+  "effect_name": "Agilité",
+  "icon": 78048,
+  "level": 10,
+  "name": "Rune Ra Age",
+  "value": 10
+ },
+ "1556": {
+  "effectId": 123,
+  "effect_name": "Chance",
+  "icon": 78042,
+  "level": 10,
+  "name": "Rune Ra Cha",
+  "value": 10
+ },
+ "1557": {
+  "effectId": 111,
+  "effect_name": "PA",
+  "icon": 78055,
+  "level": 100,
+  "name": "Rune Ga Pa",
+  "value": 1
+ },
+ "1558": {
+  "effectId": 128,
+  "effect_name": "PM",
+  "icon": 78056,
+  "level": 95,
+  "name": "Rune Ga Pme",
+  "value": 1
+ },
+ "7433": {
+  "effectId": 115,
+  "effect_name": "% Critique",
+  "icon": 78014,
+  "level": 80,
+  "name": "Rune Cri",
+  "value": 1
+ },
+ "7434": {
+  "effectId": 178,
+  "effect_name": "Soin",
+  "icon": 78013,
+  "level": 80,
+  "name": "Rune So",
+  "value": 1
+ },
+ "7435": {
+  "effectId": 112,
+  "effect_name": "Dommage",
+  "icon": 78015,
+  "level": 50,
+  "name": "Rune Do",
+  "value": 1
+ },
+ "7436": {
+  "effectId": 138,
+  "effect_name": "Puissance",
+  "icon": 78016,
+  "level": 15,
+  "name": "Rune Pui",
+  "value": 1
+ },
+ "7437": {
+  "effectId": 220,
+  "effect_name": "Dommages Renvoyés",
+  "icon": 78017,
+  "level": 40,
+  "name": "Rune Do Ren",
+  "value": 1
+ },
+ "7438": {
+  "effectId": 117,
+  "effect_name": "Portée",
+  "icon": 78018,
+  "level": 90,
+  "name": "Rune Po",
+  "value": 1
+ },
+ "7442": {
+  "effectId": 182,
+  "effect_name": "Invocation",
+  "icon": 78019,
+  "level": 85,
+  "name": "Rune Invo",
+  "value": 1
+ },
+ "7443": {
+  "effectId": 158,
+  "effect_name": "Pod",
+  "icon": 78020,
+  "level": 1,
+  "name": "Rune Pod",
+  "value": 10
+ },
+ "7444": {
+  "effectId": 158,
+  "effect_name": "Pod",
+  "icon": 78021,
+  "level": 5,
+  "name": "Rune Pa Pod",
+  "value": 30
+ },
+ "7445": {
+  "effectId": 158,
+  "effect_name": "Pod",
+  "icon": 78022,
+  "level": 10,
+  "name": "Rune Ra Pod",
+  "value": 100
+ },
+ "7446": {
+  "effectId": 225,
+  "effect_name": "Dommage Pièges",
+  "icon": 78268,
+  "level": 40,
+  "name": "Rune Do Pi",
+  "value": 1
+ },
+ "7447": {
+  "effectId": 226,
+  "effect_name": "Puissance Pièges",
+  "icon": 78024,
+  "level": 15,
+  "name": "Rune Per Pi",
+  "value": 1
+ },
+ "7448": {
+  "effectId": 174,
+  "effect_name": "Initiative",
+  "icon": 78025,
+  "level": 1,
+  "name": "Rune Ini",
+  "value": 10
+ },
+ "7449": {
+  "effectId": 174,
+  "effect_name": "Initiative",
+  "icon": 78026,
+  "level": 5,
+  "name": "Rune Pa Ini",
+  "value": 30
+ },
+ "7450": {
+  "effectId": 174,
+  "effect_name": "Initiative",
+  "icon": 78027,
+  "level": 10,
+  "name": "Rune Ra Ini",
+  "value": 100
+ },
+ "7451": {
+  "effectId": 176,
+  "effect_name": "Prospection",
+  "icon": 78036,
+  "level": 15,
+  "name": "Rune Prospe",
+  "value": 1
+ },
+ "7452": {
+  "effectId": 243,
+  "effect_name": "Résistance Feu",
+  "icon": 78028,
+  "level": 30,
+  "name": "Rune Ré Feu",
+  "value": 1
+ },
+ "7453": {
+  "effectId": 242,
+  "effect_name": "Résistance Air",
+  "icon": 78032,
+  "level": 30,
+  "name": "Rune Ré Air",
+  "value": 1
+ },
+ "7454": {
+  "effectId": 241,
+  "effect_name": "Résistance Eau",
+  "icon": 78030,
+  "level": 30,
+  "name": "Rune Ré Eau",
+  "value": 1
+ },
+ "7455": {
+  "effectId": 240,
+  "effect_name": "Résistance Terre",
+  "icon": 78034,
+  "level": 30,
+  "name": "Rune Ré Terre",
+  "value": 1
+ },
+ "7456": {
+  "effectId": 244,
+  "effect_name": "Résistance Neutre",
+  "icon": 78057,
+  "level": 30,
+  "name": "Rune Ré Neutre",
+  "value": 1
+ },
+ "7457": {
+  "effectId": 213,
+  "effect_name": "% Résistance Feu",
+  "icon": 78029,
+  "level": 75,
+  "name": "Rune Ré Per Feu",
+  "value": 1
+ },
+ "7458": {
+  "effectId": 212,
+  "effect_name": "% Résistance Air",
+  "icon": 78033,
+  "level": 75,
+  "name": "Rune Ré Per Air",
+  "value": 1
+ },
+ "7459": {
+  "effectId": 210,
+  "effect_name": "% Résistance Terre",
+  "icon": 78035,
+  "level": 75,
+  "name": "Rune Ré Per Terre",
+  "value": 1
+ },
+ "7460": {
+  "effectId": 214,
+  "effect_name": "% Résistance Neutre",
+  "icon": 78058,
+  "level": 75,
+  "name": "Rune Ré Per Neutre",
+  "value": 1
+ },
+ "7508": {
+  "effectId": 118,
+  "effect_name": null,
+  "icon": 50037,
+  "level": 100,
+  "name": "Rune de Signature",
+  "value": null
+ },
+ "7560": {
+  "effectId": 211,
+  "effect_name": "% Résistance Eau",
+  "icon": 78031,
+  "level": 75,
+  "name": "Rune Ré Per Eau",
+  "value": 1
+ },
+ "10057": {
+  "effectId": 795,
+  "effect_name": "Arme de chasse",
+  "icon": 78059,
+  "level": 10,
+  "name": "Rune de chasse",
+  "value": 0
+ },
+ "10613": {
+  "effectId": 225,
+  "effect_name": "Dommage Pièges",
+  "icon": null,
+  "level": 45,
+  "name": "Rune Pa Do Pi",
+  "value": 3
+ },
+ "10615": {
+  "effectId": 226,
+  "effect_name": "Puissance Pièges",
+  "icon": 78266,
+  "level": 20,
+  "name": "Rune Pa Per Pi",
+  "value": 3
+ },
+ "10616": {
+  "effectId": 226,
+  "effect_name": "Puissance Pièges",
+  "icon": 78267,
+  "level": 25,
+  "name": "Rune Ra Per Pi",
+  "value": 10
+ },
+ "10618": {
+  "effectId": 138,
+  "effect_name": "Puissance",
+  "icon": null,
+  "level": 20,
+  "name": "Rune Pa Pui",
+  "value": 3
+ },
+ "10619": {
+  "effectId": 138,
+  "effect_name": "Puissance",
+  "icon": null,
+  "level": 25,
+  "name": "Rune Ra Pui",
+  "value": 10
+ },
+ "10662": {
+  "effectId": 176,
+  "effect_name": "Prospection",
+  "icon": null,
+  "level": 20,
+  "name": "Rune Pa Prospe",
+  "value": 3
+ },
+ "11637": {
+  "effectId": 752,
+  "effect_name": "Fuite",
+  "icon": 78076,
+  "level": 55,
+  "name": "Rune Fui",
+  "value": 1
+ },
+ "11638": {
+  "effectId": 752,
+  "effect_name": "Fuite",
+  "icon": 78075,
+  "level": 60,
+  "name": "Rune Pa Fui",
+  "value": 3
+ },
+ "11639": {
+  "effectId": 753,
+  "effect_name": "Tacle",
+  "icon": 78077,
+  "level": 55,
+  "name": "Rune Tac",
+  "value": 1
+ },
+ "11640": {
+  "effectId": 753,
+  "effect_name": "Tacle",
+  "icon": 78078,
+  "level": 60,
+  "name": "Rune Pa Tac",
+  "value": 3
+ },
+ "11641": {
+  "effectId": 160,
+  "effect_name": "Esquive PA",
+  "icon": 78083,
+  "level": 65,
+  "name": "Rune Ré Pa",
+  "value": 1
+ },
+ "11642": {
+  "effectId": 160,
+  "effect_name": "Esquive PA",
+  "icon": 78084,
+  "level": 70,
+  "name": "Rune Pa Ré Pa",
+  "value": 3
+ },
+ "11643": {
+  "effectId": 161,
+  "effect_name": "Esquive PM",
+  "icon": 78085,
+  "level": 65,
+  "name": "Rune Ré Pme",
+  "value": 1
+ },
+ "11644": {
+  "effectId": 161,
+  "effect_name": "Esquive PM",
+  "icon": 78086,
+  "level": 70,
+  "name": "Rune Pa Ré Pme",
+  "value": 3
+ },
+ "11645": {
+  "effectId": 410,
+  "effect_name": "Retrait PA",
+  "icon": 78087,
+  "level": 65,
+  "name": "Rune Ret Pa",
+  "value": 1
+ },
+ "11646": {
+  "effectId": 410,
+  "effect_name": "Retrait PA",
+  "icon": 78088,
+  "level": 70,
+  "name": "Rune Pa Ret Pa",
+  "value": 3
+ },
+ "11647": {
+  "effectId": 412,
+  "effect_name": "Retrait PM",
+  "icon": 78089,
+  "level": 65,
+  "name": "Rune Ret Pme",
+  "value": 1
+ },
+ "11648": {
+  "effectId": 412,
+  "effect_name": "Retrait PM",
+  "icon": 78090,
+  "level": 70,
+  "name": "Rune Pa Ret Pme",
+  "value": 3
+ },
+ "11649": {
+  "effectId": 414,
+  "effect_name": "Dommage Poussée",
+  "icon": 78081,
+  "level": 40,
+  "name": "Rune Do Pou",
+  "value": 1
+ },
+ "11650": {
+  "effectId": 414,
+  "effect_name": "Dommage Poussée",
+  "icon": 78082,
+  "level": 45,
+  "name": "Rune Pa Do Pou",
+  "value": 3
+ },
+ "11651": {
+  "effectId": 416,
+  "effect_name": "Résistance Poussée",
+  "icon": 78079,
+  "level": 30,
+  "name": "Rune Ré Pou",
+  "value": 1
+ },
+ "11652": {
+  "effectId": 416,
+  "effect_name": "Résistance Poussée",
+  "icon": 78080,
+  "level": 35,
+  "name": "Rune Pa Ré Pou",
+  "value": 3
+ },
+ "11653": {
+  "effectId": 418,
+  "effect_name": "Dommage Critiques",
+  "icon": 78073,
+  "level": 40,
+  "name": "Rune Do Cri",
+  "value": 1
+ },
+ "11654": {
+  "effectId": 418,
+  "effect_name": "Dommage Critiques",
+  "icon": 78074,
+  "level": 45,
+  "name": "Rune Pa Do Cri",
+  "value": 3
+ },
+ "11655": {
+  "effectId": 420,
+  "effect_name": "Résistance Critiques",
+  "icon": 78071,
+  "level": 30,
+  "name": "Rune Ré Cri",
+  "value": 1
+ },
+ "11656": {
+  "effectId": 420,
+  "effect_name": "Résistance Critiques",
+  "icon": 78072,
+  "level": 35,
+  "name": "Rune Pa Ré Cri",
+  "value": 3
+ },
+ "11657": {
+  "effectId": 422,
+  "effect_name": "Dommage Terre",
+  "icon": 78065,
+  "level": 40,
+  "name": "Rune Do Terre",
+  "value": 1
+ },
+ "11658": {
+  "effectId": 422,
+  "effect_name": "Dommage Terre",
+  "icon": 78066,
+  "level": 45,
+  "name": "Rune Pa Do Terre",
+  "value": 3
+ },
+ "11659": {
+  "effectId": 424,
+  "effect_name": "Dommage Feu",
+  "icon": 78063,
+  "level": 40,
+  "name": "Rune Do Feu",
+  "value": 1
+ },
+ "11660": {
+  "effectId": 424,
+  "effect_name": "Dommage Feu",
+  "icon": 78064,
+  "level": 45,
+  "name": "Rune Pa Do Feu",
+  "value": 3
+ },
+ "11661": {
+  "effectId": 426,
+  "effect_name": "Dommage Eau",
+  "icon": 78061,
+  "level": 40,
+  "name": "Rune Do Eau",
+  "value": 1
+ },
+ "11662": {
+  "effectId": 426,
+  "effect_name": "Dommage Eau",
+  "icon": 78062,
+  "level": 45,
+  "name": "Rune Pa Do Eau",
+  "value": 3
+ },
+ "11663": {
+  "effectId": 428,
+  "effect_name": "Dommage Air",
+  "icon": 78067,
+  "level": 40,
+  "name": "Rune Do Air",
+  "value": 1
+ },
+ "11664": {
+  "effectId": 428,
+  "effect_name": "Dommage Air",
+  "icon": 78068,
+  "level": 45,
+  "name": "Rune Pa Do Air",
+  "value": 3
+ },
+ "11665": {
+  "effectId": 430,
+  "effect_name": "Dommage Neutre",
+  "icon": 78069,
+  "level": 40,
+  "name": "Rune Do Neutre",
+  "value": 1
+ },
+ "11666": {
+  "effectId": 430,
+  "effect_name": "Dommage Neutre",
+  "icon": 78070,
+  "level": 45,
+  "name": "Rune Pa Do Neutre",
+  "value": 3
+ },
+ "18719": {
+  "effectId": 2800,
+  "effect_name": "% Dommages mêlée",
+  "icon": 78092,
+  "level": 50,
+  "name": "Rune Do Per Mé",
+  "value": 1
+ },
+ "18720": {
+  "effectId": 2804,
+  "effect_name": "% Dommages distance",
+  "icon": 78091,
+  "level": 50,
+  "name": "Rune Do Per Di",
+  "value": 1
+ },
+ "18721": {
+  "effectId": 2808,
+  "effect_name": "% Dommages d'armes",
+  "icon": 78093,
+  "level": 50,
+  "name": "Rune Do Per Ar",
+  "value": 1
+ },
+ "18722": {
+  "effectId": 2812,
+  "effect_name": "% Dommages aux sorts",
+  "icon": 78094,
+  "level": 50,
+  "name": "Rune Do Per So",
+  "value": 1
+ },
+ "18723": {
+  "effectId": 2803,
+  "effect_name": "% Résistance mêlée",
+  "icon": 78095,
+  "level": 50,
+  "name": "Rune Ré Per Mé",
+  "value": 1
+ },
+ "18724": {
+  "effectId": 2807,
+  "effect_name": "% Résistance distance",
+  "icon": 78096,
+  "level": 50,
+  "name": "Rune Ré Per Di",
+  "value": 1
+ },
+ "19337": {
+  "effectId": 178,
+  "effect_name": "Soin",
+  "icon": null,
+  "level": 90,
+  "name": "Rune Pa So",
+  "value": 3
+ },
+ "19338": {
+  "effectId": 242,
+  "effect_name": "Résistance Air",
+  "icon": null,
+  "level": 35,
+  "name": "Rune Pa Ré Air",
+  "value": 3
+ },
+ "19339": {
+  "effectId": 241,
+  "effect_name": "Résistance Eau",
+  "icon": null,
+  "level": 35,
+  "name": "Rune Pa Ré Eau",
+  "value": 3
+ },
+ "19340": {
+  "effectId": 243,
+  "effect_name": "Résistance Feu",
+  "icon": null,
+  "level": 35,
+  "name": "Rune Pa Ré Feu",
+  "value": 3
+ },
+ "19341": {
+  "effectId": 244,
+  "effect_name": "Résistance Neutre",
+  "icon": null,
+  "level": 35,
+  "name": "Rune Pa Ré Neutre",
+  "value": 3
+ },
+ "19342": {
+  "effectId": 240,
+  "effect_name": "Résistance Terre",
+  "icon": null,
+  "level": 35,
+  "name": "Rune Pa Ré Terre",
+  "value": 3
+ }
+}

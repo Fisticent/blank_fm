@@ -1,0 +1,29 @@
+# Build portable
+dist/
+build/
+*.spec.bak
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Session perso
+fm_history.json
+fm_settings.json
+dofus_fm.log
+_scratch/
+cache/
+app/fm_ui/_scratch/
+
+# Captures reseau brutes (trop lourdes pour GitHub)
+pcaps/
+*.pcap
+
+# Outils locaux
+.cursor/
+.reasonix/
+reasonix.toml
+graphify-out/
