@@ -1084,31 +1084,53 @@ ApplicationWindow {
 
                 SectionCard {
                     width: parent.width
-                    height: 64
+                    height: 108
                     title: "OVERLAY"
-                    Row {
+                    Column {
                         anchors.fill: parent
-                        spacing: 10
-                        Text {
-                            text: "Toujours au-dessus : coût, temps, tentatives d'exo"
-                            color: Colors.text
-                            font.family: Colors.font_family
-                            font.pixelSize: Colors.font_size_ui
-                            wrapMode: Text.WordWrap
-                            width: parent.width - 70
-                            anchors.verticalCenter: parent.verticalCenter
+                        spacing: 8
+                        Row {
+                            spacing: 10
+                            width: parent.width
+                            Text {
+                                text: "Toujours au-dessus : coût, temps, tentatives d'exo"
+                                color: Colors.text
+                                font.family: Colors.font_family
+                                font.pixelSize: Colors.font_size_ui
+                                wrapMode: Text.WordWrap
+                                width: parent.width - 70
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            ThemedSwitch {
+                                checked: app.overlayEnabled
+                                onClicked: app.setOverlayEnabled(!app.overlayEnabled)
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
                         }
-                        ThemedSwitch {
-                            checked: app.overlayEnabled
-                            onClicked: app.setOverlayEnabled(!app.overlayEnabled)
-                            anchors.verticalCenter: parent.verticalCenter
+                        Row {
+                            spacing: 10
+                            width: parent.width
+                            Text {
+                                text: "Alerte stock runes (moins de 30)"
+                                color: Colors.text
+                                font.family: Colors.font_family
+                                font.pixelSize: Colors.font_size_ui
+                                wrapMode: Text.WordWrap
+                                width: parent.width - 70
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            ThemedSwitch {
+                                checked: app.overlayLowRunesEnabled
+                                onClicked: app.setOverlayLowRunesEnabled(!app.overlayLowRunesEnabled)
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
                         }
                     }
                 }
 
                 SectionCard {
                     width: parent.width
-                    height: parent.height - 378
+                    height: parent.height - 422
                     title: "CARACTÉRISTIQUES SURVEILLÉES"
 
                     Column {

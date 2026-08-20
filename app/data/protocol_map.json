@@ -3,6 +3,7 @@
   "item_state": "kdr",
   "inventory": "iuj",
   "object_use": "kcj",
+  "stack_qty": "ivj",
   "prices": "ivi",
   "price_gid": "iwo",
   "price_val": "kgq"

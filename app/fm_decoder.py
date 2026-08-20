@@ -238,6 +238,19 @@ class RuneUse:
         return RUNES.get(self.gid, f"gid {self.gid}")
 
 
+def _object_qty(oi: dict) -> int:
+    q = oi.get(3)
+    if isinstance(q, int) and q > 0:
+        return q
+    f5 = oi.get(5)
+    if isinstance(f5, bytes):
+        m = _fields(f5)
+        q = m.get(1)
+        if isinstance(q, int) and q > 0:
+            return q
+    return 1
+
+
 @dataclass
 class ItemState:
     gid: int
@@ -246,6 +259,7 @@ class ItemState:
     state: int           # kdr f2.f1 (0-2, semi-aléatoire)
     puit: Optional[float]  # kdr f2.f3 = puit (budget de poids) affiche dans l'UI de forgemagie
     effects: list[tuple[int, int]] = field(default_factory=list)  # (effectId, valeur)
+    qty: int = 1
 
     def effect(self, eid: int) -> Optional[int]:
         for i, v in self.effects:
@@ -305,7 +319,8 @@ def parse_iuj(payload: bytes) -> Optional[ItemState]:
     oi = _fields(o)
     return ItemState(gid=oi.get(1) or 0, uid=oi.get(4) or 0, slot=ai.get(1) or 0,
                      state=0, puit=None,
-                     effects=_effect_list(o) if isinstance(oi.get(2), bytes) else [])
+                     effects=_effect_list(o) if isinstance(oi.get(2), bytes) else [],
+                     qty=_object_qty(oi))
 
 
 def parse_ivj(payload: bytes) -> Optional[tuple[int, int]]:

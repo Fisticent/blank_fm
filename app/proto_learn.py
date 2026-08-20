@@ -14,7 +14,7 @@ from typing import Optional
 from sniffer_hdv import parse_message
 from fm_decoder import (
     RUNES, EFFECTS, ITEMS, RuneUse, ItemState,
-    parse_kfb, parse_kdr, parse_iuj, known_item_gid,
+    parse_kfb, parse_kdr, parse_iuj, parse_ivj, known_item_gid,
     _ensure_effects_loaded, _ensure_items_enriched,
 )
 from fm_cost import parse_ivi
@@ -25,6 +25,7 @@ DEFAULT_MAP = {
     "item_state": "kdr",
     "inventory": "iuj",
     "object_use": "kcj",
+    "stack_qty": "ivj",
     "prices": "ivi",
     "price_gid": "iwo",
     "price_val": "kgq",
@@ -134,6 +135,13 @@ def parse_item_state_any(payload: bytes) -> Optional[ItemState]:
 def parse_iuj_only(payload: bytes) -> Optional[ItemState]:
     st = parse_iuj(payload)
     if st and known_item_gid(st.gid) and st.slot:
+        return st
+    return None
+
+
+def parse_rune_stack(payload: bytes) -> Optional[ItemState]:
+    st = parse_iuj(payload)
+    if st and st.gid in RUNES:
         return st
     return None
 
@@ -271,6 +279,14 @@ def _as_role(role: str, payload: bytes, direction: str):
         inv = parse_iuj_only(payload)
         if inv:
             return ("inventory", inv)
+        rune = parse_rune_stack(payload)
+        if rune:
+            return ("rune_stack", rune)
+        return None
+    if role == "stack_qty":
+        q = parse_ivj(payload)
+        if q and q[0]:
+            return ("stack_qty", q)
         return None
     return None
 

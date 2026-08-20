@@ -41,6 +41,7 @@ from proto_learn import PROTO, classify_payload, DEFAULT_MAP
 
 PORT_GAME = 5555
 FORGE_SLOT = 63   # emplacement de l'item dans l'interface de forgemagie
+RUNE_LOW_QTY = 30
 
 # Densite (poids de base) par effectId — source DPLN (poids simple), cf.
 # dofuspourlesnoobs.com/guide-forgemagie.html. Inconnu -> 1.0 (fallback).
@@ -125,6 +126,7 @@ class FmPanel:
         self.event_no = 0
         self.proto_status = PROTO.status()
         self._log_since_flush = 0
+        self._rune_uid: dict[int, dict] = {}
 
     def close(self) -> None:
         if self._log:
@@ -186,6 +188,15 @@ class FmPanel:
             PROTO.learned = False
         if kind == "rune_echo" and obj:
             self._rune = obj
+            self._note_rune_uid(getattr(obj, "uid", 0), getattr(obj, "gid", 0))
+        elif kind == "stack_qty" and obj:
+            uid, qty = obj
+            self._set_rune_qty(uid, qty)
+            self._render()
+        elif kind == "rune_stack" and obj:
+            self._note_rune_uid(getattr(obj, "uid", 0), getattr(obj, "gid", 0),
+                                getattr(obj, "qty", None))
+            self._render()
         elif kind == "item_state" and obj:
             st = obj
             pending = self._rune
@@ -243,6 +254,57 @@ class FmPanel:
         if self.item_slot and slot == self.item_slot:
             return True
         return False
+
+    def _note_rune_uid(self, uid: int, gid: int, qty: Optional[int] = None) -> None:
+        try:
+            uid = int(uid or 0)
+            gid = int(gid or 0)
+        except (TypeError, ValueError):
+            return
+        if not uid:
+            return
+        rec = self._rune_uid.setdefault(uid, {})
+        if gid and gid in RUNES:
+            rec["gid"] = gid
+            rec["name"] = RUNES.get(gid, f"gid {gid}")
+        if qty is not None:
+            try:
+                rec["qty"] = max(0, int(qty))
+            except (TypeError, ValueError):
+                pass
+
+    def _set_rune_qty(self, uid: int, qty) -> None:
+        try:
+            uid = int(uid or 0)
+            qty = int(qty)
+        except (TypeError, ValueError):
+            return
+        if not uid:
+            return
+        rec = self._rune_uid.setdefault(uid, {})
+        rec["qty"] = max(0, qty)
+
+    def low_rune_stocks(self, limit: int = RUNE_LOW_QTY) -> list[dict]:
+        by_gid: dict[int, int] = {}
+        names: dict[int, str] = {}
+        for rec in self._rune_uid.values():
+            gid = int(rec.get("gid") or 0)
+            if not gid or gid not in RUNES:
+                continue
+            if "qty" not in rec:
+                continue
+            try:
+                qty = int(rec.get("qty") or 0)
+            except (TypeError, ValueError):
+                continue
+            by_gid[gid] = by_gid.get(gid, 0) + qty
+            names[gid] = rec.get("name") or RUNES.get(gid, f"gid {gid}")
+        rows = []
+        for gid, qty in by_gid.items():
+            if qty < limit:
+                rows.append({"gid": gid, "name": names[gid], "qty": qty})
+        rows.sort(key=lambda r: (r["qty"], r["name"].lower()))
+        return rows
 
     def _is_other_item(self, st) -> bool:
         """True si st n'est pas l'item actuellement en forge (gid ou uid)."""

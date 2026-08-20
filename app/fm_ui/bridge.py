@@ -1069,6 +1069,7 @@ class FmPanelBridge(QObject):
                     row["icon"] = url
                     break
         self._rune_icon_debounce.start()
+        self.updated.emit()
 
     @Property(float, notify=updated)
     def puit(self) -> float:
@@ -1524,6 +1525,7 @@ class FmPanelBridge(QObject):
             "sound_perte": True,
             "sound_exo_fail": True,
             "overlay_enabled": False,
+            "overlay_low_runes": True,
             "overlay_x": -1,
             "overlay_y": -1,
             "overlay_w": -1,
@@ -1545,6 +1547,8 @@ class FmPanelBridge(QObject):
                     cfg["sound_exo_fail"] = bool(data["sound_exo_fail"])
                 if "overlay_enabled" in data:
                     cfg["overlay_enabled"] = bool(data["overlay_enabled"])
+                if "overlay_low_runes" in data:
+                    cfg["overlay_low_runes"] = bool(data["overlay_low_runes"])
                 try:
                     if "overlay_x" in data:
                         cfg["overlay_x"] = int(data["overlay_x"])
@@ -1653,6 +1657,48 @@ class FmPanelBridge(QObject):
     @Property(bool, notify=settingsChanged)
     def overlayEnabled(self) -> bool:
         return bool(self._settings.get("overlay_enabled", False))
+
+    @Property(bool, notify=settingsChanged)
+    def overlayLowRunesEnabled(self) -> bool:
+        return bool(self._settings.get("overlay_low_runes", True))
+
+    @Slot(bool)
+    def set_overlay_low_runes_enabled(self, enabled: bool):
+        self._settings["overlay_low_runes"] = bool(enabled)
+        self._save_settings()
+        self.settingsChanged.emit()
+        self.updated.emit()
+
+    @Slot(bool)
+    def setOverlayLowRunesEnabled(self, enabled: bool):
+        self.set_overlay_low_runes_enabled(enabled)
+
+    @Property("QVariantList", notify=updated)
+    def lowRuneStocksModel(self) -> list:
+        if not self.overlayLowRunesEnabled:
+            return []
+        p = self._p
+        if p is None:
+            return []
+        try:
+            rows = p.low_rune_stocks()
+        except Exception:
+            return []
+        catalog = {int(r.get("gid") or 0): r for r in self._build_runes_rows()}
+        out = []
+        for rec in rows:
+            gid = int(rec.get("gid") or 0)
+            cat = catalog.get(gid) or {}
+            icon = cat.get("icon") or ""
+            if not icon:
+                icon = self._rune_icon_for(gid, None)
+            out.append({
+                "gid": gid,
+                "name": rec.get("name") or "",
+                "qty": int(rec.get("qty") or 0),
+                "icon": icon,
+            })
+        return out
 
     @Property(int, notify=settingsChanged)
     def overlayX(self) -> int:

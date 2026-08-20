@@ -89,15 +89,32 @@ Window {
                     }
                 }
 
-                Text {
-                    text: app.itemGid > 0 ? app.itemName : "Dofus FM"
-                    color: Colors.text
-                    font.family: Colors.font_family
-                    font.pixelSize: Colors.font_size_ui
-                    font.bold: true
-                    elide: Text.ElideRight
+                Column {
                     width: Math.max(40, parent.width - 32 - 8 - rightBtns.width - 8)
+                    spacing: 1
                     anchors.verticalCenter: parent.verticalCenter
+                    Text {
+                        text: app.itemGid > 0 ? app.itemName : "Dofus FM"
+                        color: Colors.text
+                        font.family: Colors.font_family
+                        font.pixelSize: Colors.font_size_ui
+                        font.bold: true
+                        elide: Text.ElideRight
+                        width: parent.width
+                    }
+                    Text {
+                        visible: app.itemGid > 0
+                        text: app.jetPct >= 0
+                              ? ("Jet " + app.jetPct.toFixed(1) + "%")
+                              : "Jet …"
+                        color: app.jetPct >= Colors.JET_GREEN ? Colors.success
+                             : app.jetPct >= Colors.JET_YELLOW ? Colors.warning
+                             : (app.jetPct >= 0 ? Colors.danger : Colors.text_muted)
+                        font.family: Colors.font_family
+                        font.pixelSize: Colors.font_size_secondary
+                        font.bold: true
+                        width: parent.width
+                    }
                 }
 
                 Row {
@@ -220,6 +237,55 @@ Window {
                 color: Colors.text_muted
                 font.family: Colors.font_family
                 font.pixelSize: Colors.font_size_secondary
+            }
+
+            Text {
+                visible: app.overlayLowRunesEnabled && app.lowRuneStocksModel.length > 0
+                text: "STOCK < 30"
+                color: Colors.text_muted
+                font.family: Colors.font_family
+                font.pixelSize: 10
+                font.bold: true
+            }
+            Column {
+                visible: app.overlayLowRunesEnabled && app.lowRuneStocksModel.length > 0
+                width: parent.width
+                spacing: 4
+                Repeater {
+                    model: app.lowRuneStocksModel
+                    Row {
+                        width: parent.width
+                        spacing: 6
+                        Image {
+                            width: 18
+                            height: 18
+                            source: modelData.icon || ""
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: true
+                            cache: true
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: modelData.name
+                            color: modelData.qty <= 5 ? Colors.danger : Colors.warning
+                            font.family: Colors.font_family
+                            font.pixelSize: Colors.font_size_secondary
+                            font.bold: true
+                            elide: Text.ElideRight
+                            width: Math.max(40, parent.width - 18 - 6 - qtyLbl.width - 6)
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            id: qtyLbl
+                            text: "" + modelData.qty
+                            color: modelData.qty <= 5 ? Colors.danger : Colors.warning
+                            font.family: Colors.font_family
+                            font.pixelSize: Colors.font_size_ui
+                            font.bold: true
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                }
             }
 
             Row {
