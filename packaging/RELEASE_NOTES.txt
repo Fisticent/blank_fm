@@ -1,15 +1,14 @@
-Outil Forgemagie Dofus 3 (Windows), v1.0.2
+Outil Forgemagie Dofus 3 (Windows), v1.0.3
 
 - Dezippe, lance DofusFM.exe, accepte l'admin
 - Bouton Installer Npcap si besoin (telecharge l'installeur officiel)
-- Overlay, cout des tentas, reset
+- Overlay : jet global, stock des runes sous 30 (icone + qty), option dans Parametres
 - Au lancement : bandeau si une maj GitHub existe, un clic telecharge et relance
-- Proto fige (kfb / kdr / iuj) : plus d'apprentissage sauvage qui cassait le switch d'item
-- GID inconnus ignores (plus de faux items type "gid 34484")
-- Overlay qui ne meurt plus hors FM (resynchro TCP)
-- Chrono session/item en pause apres 10s sans rune, reprend a la pose
+- Proto fige (kfb / kdr / iuj / ivj)
+- GID inconnus ignores, overlay qui ne meurt plus hors FM
+- Chrono session/item en pause apres 10s sans rune
 
-Si tu avais v1.0.0 / v1.0.1 : remplace le dossier une fois. Ensuite les maj se font dans l'outil.
-Tu peux supprimer protocol_map.json a cote de l'exe s'il trainait (celui dans _internal/data suffit).
+Si tu as v1.0.2 : bandeau vert au lancement, un clic suffit.
+Si tu avais v1.0.0 / v1.0.1 : telecharge ce zip une fois, ensuite les maj se font dans l'outil.
 
 Npcap n'est pas dans le zip (licence). Capture passive, rien n'est envoye au serveur.
