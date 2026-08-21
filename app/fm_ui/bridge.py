@@ -30,10 +30,11 @@ from npcap_setup import npcap_present
 
 SETTINGS_PATH = os.path.join(PROJECT_DIR, "fm_settings.json")
 HISTORY_PATH = os.path.join(PROJECT_DIR, "fm_history.json")
-MAX_RECENT = 10
 MAX_HISTORY_POSES = 80
 IDLE_PAUSE_SEC = 10.0
 PRICE_HORIZONS = ("session", "7d", "30d")
+HISTORY_LIMITS = (10, 25, 50, 100)
+DEFAULT_HISTORY_LIMIT = 10
 
 EXO_TRACK = (
     (111, "PA"),
@@ -187,6 +188,7 @@ class FmPanelBridge(QObject):
     updateChanged = Signal()
     requestQuit = Signal()
     logChanged = Signal()
+    historyDetailChanged = Signal()
 
     def __init__(self, qapp=None):
         super().__init__()
@@ -238,6 +240,8 @@ class FmPanelBridge(QObject):
         self._shutting_down = False
         self._quit_requested = False
         self._log_gen = -1
+        self._history_detail: dict = {}
+        self._history_detail_index = -1
         self._npcap_ok = npcap_present()
         self._npcap_busy = False
         self._npcap_msg = (
@@ -1533,15 +1537,56 @@ class FmPanelBridge(QObject):
                         for k, v in (getattr(p, "_effects", None) or {}).items()},
         }
 
+    def _history_keep(self) -> int:
+        try:
+            n = int(self._settings.get("history_limit") or DEFAULT_HISTORY_LIMIT)
+        except (TypeError, ValueError):
+            n = DEFAULT_HISTORY_LIMIT
+        return n if n in HISTORY_LIMITS else DEFAULT_HISTORY_LIMIT
+
+    def _clean_effects(self, raw) -> dict:
+        out = {}
+        if not isinstance(raw, dict):
+            return out
+        for k, v in raw.items():
+            try:
+                out[str(int(k))] = int(v)
+            except (TypeError, ValueError):
+                continue
+        return out
+
+    def _merge_share_fields(self, snap: dict, previous: Optional[dict]) -> dict:
+        """Garde le dernier jet/stats connus si le snapshot courant est vide."""
+        if not snap:
+            return snap
+        prev = previous or {}
+        eff = self._clean_effects(snap.get("effects"))
+        if not eff:
+            eff = self._clean_effects(prev.get("effects"))
+        snap["effects"] = eff
+        try:
+            jet = float(snap.get("jet") if snap.get("jet") is not None else -1)
+        except (TypeError, ValueError):
+            jet = -1.0
+        if jet < 0:
+            try:
+                jet = float(prev.get("jet") if prev.get("jet") is not None else -1)
+            except (TypeError, ValueError):
+                jet = -1.0
+        snap["jet"] = jet
+        return snap
+
     def _archive_current_item(self) -> None:
         snap = self._item_snapshot()
         if not snap:
             return
         uid = snap["uid"]
+        prev = next((r for r in self._recent if r.get("uid") == uid), None)
+        snap = self._merge_share_fields(snap, prev)
         self._recent = [r for r in self._recent if r.get("uid") != uid]
         snap["current"] = False
         self._recent.insert(0, snap)
-        self._recent = self._recent[:MAX_RECENT]
+        self._recent = self._recent[:self._history_keep()]
         self._schedule_history_save()
 
     def _schedule_history_save(self) -> None:
@@ -1554,9 +1599,12 @@ class FmPanelBridge(QObject):
         if cur:
             rec = dict(cur)
             rec["current"] = False
+            prev = next((r for r in self._recent if r.get("uid") == rec.get("uid")), None)
+            rec = self._merge_share_fields(rec, prev)
             rows.append(rec)
             if rec.get("uid"):
                 seen.add(int(rec["uid"]))
+        keep = self._history_keep()
         for rec in self._recent:
             uid = rec.get("uid") or 0
             if uid and uid in seen:
@@ -1564,7 +1612,7 @@ class FmPanelBridge(QObject):
             if uid:
                 seen.add(int(uid))
             rows.append(dict(rec, current=False))
-            if len(rows) >= MAX_RECENT:
+            if len(rows) >= keep:
                 break
         return rows
 
@@ -1604,26 +1652,16 @@ class FmPanelBridge(QObject):
                 continue
             if not isinstance(out.get("history"), list):
                 out["history"] = []
-            eff = out.get("effects")
-            if isinstance(eff, dict):
-                clean = {}
-                for k, v in eff.items():
-                    try:
-                        clean[str(int(k))] = int(v)
-                    except (TypeError, ValueError):
-                        continue
-                out["effects"] = clean
-            else:
-                out["effects"] = {}
+            out["effects"] = self._clean_effects(out.get("effects"))
             exo = _parse_exo(out.get("exo"))
             out["exo"] = {str(eid): dict(d) for eid, d in exo.items()}
             out["exoSummary"] = _exo_summary(exo)
             rows.append(out)
             if uid:
                 self._sessions[uid] = self._session_from_snapshot(out)
-            if len(rows) >= MAX_RECENT:
+            if len(rows) >= max(HISTORY_LIMITS):
                 break
-        self._recent = rows
+        self._recent = rows[:self._history_keep()]
 
     def _save_history(self) -> None:
         rows = self._history_items_to_save()
@@ -1644,9 +1682,12 @@ class FmPanelBridge(QObject):
         cur = self._item_snapshot()
         if cur:
             cur["current"] = True
+            prev = next((r for r in self._recent if r.get("uid") == cur.get("uid")), None)
+            cur = self._merge_share_fields(cur, prev)
             rows.append(cur)
             if cur["uid"]:
                 seen.add(cur["uid"])
+        keep = self._history_keep()
         for rec in self._recent:
             uid = rec.get("uid") or 0
             if uid and uid in seen:
@@ -1654,7 +1695,7 @@ class FmPanelBridge(QObject):
             if uid:
                 seen.add(uid)
             rows.append(dict(rec, current=False))
-            if len(rows) >= MAX_RECENT:
+            if len(rows) >= keep:
                 break
         return rows
 
@@ -1685,11 +1726,15 @@ class FmPanelBridge(QObject):
                 jet_f = float(jet) if jet is not None and float(jet) >= 0 else None
             except (TypeError, ValueError):
                 jet_f = None
+            effects = self._clean_effects(rec.get("effects"))
+            if not effects:
+                print("[DOFUS-FM] carte FM: pas de jet enregistre pour",
+                      rec.get("name") or rec.get("gid"), file=sys.stderr)
             img = render_share_card(
                 name=rec.get("name") or item_name(int(rec.get("gid") or 0)),
                 gid=int(rec.get("gid") or 0),
                 icon_path=rec.get("icon") or "",
-                effects=rec.get("effects") or {},
+                effects=effects,
                 poses=int(rec.get("poses") or 0),
                 cost_total=int(rec.get("cost_total") or 0),
                 jet=jet_f,
@@ -1706,6 +1751,115 @@ class FmPanelBridge(QObject):
         print("[DOFUS-FM] carte FM copiee:", rec.get("name") or rec.get("gid"),
               file=sys.stderr)
         return True
+
+    def _build_history_detail(self, rec: dict, index: int) -> dict:
+        from fm_ui.share_card import lines_from_item
+        gid = int(rec.get("gid") or 0)
+        effects = self._clean_effects(rec.get("effects"))
+        stats = []
+        for row in lines_from_item(gid, effects):
+            sv = int(row.get("value") or 0)
+            hi = row.get("hi")
+            exo = bool(row.get("exo"))
+            malus = bool(row.get("malus"))
+            over = (not malus and not exo and hi is not None
+                    and hi > 0 and sv > hi)
+            if exo:
+                label = f"{sv}  exo"
+                pct = ""
+            elif hi is not None:
+                label = f"{sv} / {hi}"
+                pct = f"{(sv / hi * 100.0):.0f}%" if hi and hi > 0 and not malus else ""
+            else:
+                label = str(sv)
+                pct = ""
+            icon = row.get("icon") or ""
+            if icon and not str(icon).startswith("file:"):
+                icon = QUrl.fromLocalFile(icon).toString() if os.path.isfile(icon) else ""
+            stats.append({
+                "name": row.get("name") or "",
+                "value": label,
+                "pct": pct,
+                "color": row.get("color") or STAT_COLOR_FALLBACK,
+                "icon": icon,
+                "negative": malus,
+                "exo": exo,
+                "over": over,
+            })
+        runes = []
+        by_stat = rec.get("rune_by_stat") or {}
+        cost_by = rec.get("cost_by_stat") or {}
+        for k, n in by_stat.items():
+            try:
+                eid = int(k)
+                count = int(n or 0)
+            except (TypeError, ValueError):
+                continue
+            if count <= 0:
+                continue
+            cost_n = 0
+            try:
+                cost_n = int(cost_by.get(str(eid), cost_by.get(eid, 0)) or 0)
+            except (TypeError, ValueError, AttributeError):
+                cost_n = 0
+            runes.append({
+                "name": effect_name(eid),
+                "count": count,
+                "cost": _fmt_kamas(cost_n) if cost_n else "",
+                "color": STAT_COLORS.get(eid, STAT_COLOR_FALLBACK),
+                "icon": self._stat_icon_url(eid),
+            })
+        runes.sort(key=lambda r: (-r["count"], r["name"].lower()))
+        try:
+            jet = float(rec.get("jet") if rec.get("jet") is not None else -1)
+        except (TypeError, ValueError):
+            jet = -1.0
+        try:
+            avg = ""
+            poses = int(rec.get("poses") or 0)
+            total = int(rec.get("cost_total") or 0)
+            if poses and total:
+                avg = _fmt_kamas(int(round(total / poses)))
+        except (TypeError, ValueError):
+            avg = ""
+        return {
+            "index": index,
+            "name": rec.get("name") or item_name(gid),
+            "gid": gid,
+            "uid": int(rec.get("uid") or 0),
+            "icon": rec.get("icon") or "",
+            "jet": jet,
+            "poses": int(rec.get("poses") or 0),
+            "cost": rec.get("cost") or "",
+            "avg": avg,
+            "puit": float(rec.get("puit") or 0),
+            "sc": int(rec.get("sc") or 0),
+            "sn": int(rec.get("sn") or 0),
+            "ec": int(rec.get("ec") or 0),
+            "exoSummary": rec.get("exoSummary") or "",
+            "stats": stats,
+            "runes": runes,
+        }
+
+    @Property("QVariantMap", notify=historyDetailChanged)
+    def historyDetail(self) -> dict:
+        return self._history_detail or {}
+
+    @Slot(int)
+    def openHistoryDetail(self, index: int):
+        rows = self.recentItemsModel
+        if index < 0 or index >= len(rows):
+            return
+        self._history_detail_index = index
+        self._history_detail = self._build_history_detail(rows[index], index)
+        self.historyDetailChanged.emit()
+
+    @Slot(result=bool)
+    def copyHistoryDetailImage(self) -> bool:
+        idx = self._history_detail_index
+        if idx < 0:
+            return False
+        return self.copyShareImage(idx)
 
     def _build_runes_rows(self) -> list:
         if self._runes_rows is not None:
@@ -1805,6 +1959,31 @@ class FmPanelBridge(QObject):
     def setPriceHorizon(self, horizon: str):
         self.set_price_horizon(horizon)
 
+    @Property(int, notify=settingsChanged)
+    def historyLimit(self) -> int:
+        return self._history_keep()
+
+    @Slot(int)
+    def set_history_limit(self, n: int):
+        try:
+            val = int(n)
+        except (TypeError, ValueError):
+            val = DEFAULT_HISTORY_LIMIT
+        if val not in HISTORY_LIMITS:
+            val = DEFAULT_HISTORY_LIMIT
+        if self._history_keep() == val:
+            return
+        self._settings["history_limit"] = val
+        self._save_settings()
+        self._recent = self._recent[:val]
+        self._schedule_history_save()
+        self.settingsChanged.emit()
+        self.updated.emit()
+
+    @Slot(int)
+    def setHistoryLimit(self, n: int):
+        self.set_history_limit(n)
+
     def _default_settings(self) -> dict:
         return {
             "sound_exo": True,
@@ -1818,6 +1997,7 @@ class FmPanelBridge(QObject):
             "overlay_h": -1,
             "rules": [dict(r) for r in DEFAULT_RULES],
             "price_horizon": "session",
+            "history_limit": DEFAULT_HISTORY_LIMIT,
         }
 
     def _load_settings(self) -> dict:
@@ -1839,6 +2019,12 @@ class FmPanelBridge(QObject):
                 hz = data.get("price_horizon")
                 if hz in PRICE_HORIZONS:
                     cfg["price_horizon"] = hz
+                try:
+                    hl = int(data.get("history_limit"))
+                    if hl in HISTORY_LIMITS:
+                        cfg["history_limit"] = hl
+                except (TypeError, ValueError):
+                    pass
                 try:
                     if "overlay_x" in data:
                         cfg["overlay_x"] = int(data["overlay_x"])

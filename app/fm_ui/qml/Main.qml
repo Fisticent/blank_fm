@@ -133,7 +133,7 @@ ApplicationWindow {
                 onClicked: win.mainTab = 0
             }
             ThemedButton {
-                label: "10 derniers objets"
+                label: "Objets"
                 accent: win.mainTab === 1
                 onClicked: win.mainTab = 1
             }
@@ -595,7 +595,7 @@ ApplicationWindow {
 
             SectionCard {
                 anchors.fill: parent
-                title: "10 DERNIERS OBJETS FM"
+                title: app.historyLimit + " DERNIERS OBJETS FM"
 
                 ListView {
                     id: recentList
@@ -605,12 +605,24 @@ ApplicationWindow {
                     clip: true
                     boundsBehavior: Flickable.StopAtBounds
                     delegate: Rectangle {
+                        id: histRow
                         width: recentList.width
                         height: (modelData.exoSummary || "") !== "" ? 104 : 88
                         radius: Colors.radius_control
-                        color: Colors.bg_elevated
+                        color: histClick.containsMouse ? Colors.secondary_hover : Colors.bg_elevated
                         border.width: 1
                         border.color: modelData.current ? Colors.primary : Colors.separator
+
+                        MouseArea {
+                            id: histClick
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                app.openHistoryDetail(index)
+                                historyPopup.open()
+                            }
+                        }
 
                         Row {
                             anchors.fill: parent
@@ -762,6 +774,271 @@ ApplicationWindow {
                         font.family: Colors.font_family
                         font.pixelSize: Colors.font_size_secondary
                     }
+                }
+            }
+
+            Popup {
+                id: historyPopup
+                parent: Overlay.overlay
+                anchors.centerIn: parent
+                width: Math.min(560, win.width - 36)
+                height: Math.min(600, win.height - 36)
+                modal: true
+                focus: true
+                padding: 0
+                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                onOpened: historyPopup.imgLabel = "Image"
+                background: Rectangle {
+                    color: Colors.bg_card
+                    radius: Colors.radius_card
+                    border.width: 1
+                    border.color: Colors.separator
+                }
+
+                readonly property var d: app.historyDetail
+                property string imgLabel: "Image"
+
+                Column {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
+
+                    Row {
+                        width: parent.width
+                        spacing: 12
+                        height: 64
+
+                        Rectangle {
+                            width: 64; height: 64
+                            radius: Colors.radius_control
+                            color: Colors.bg
+                            border.width: 1
+                            border.color: Colors.separator
+                            Image {
+                                anchors.fill: parent
+                                anchors.margins: 4
+                                source: historyPopup.d.icon || ""
+                                fillMode: Image.PreserveAspectFit
+                            }
+                        }
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 3
+                            width: Math.max(120, historyPopup.width - 220)
+                            Text {
+                                text: historyPopup.d.name || ""
+                                color: Colors.text
+                                font.family: Colors.font_family
+                                font.pixelSize: Colors.font_size_heading
+                                font.bold: true
+                                elide: Text.ElideRight
+                                width: parent.width
+                            }
+                            Text {
+                                text: "GID " + (historyPopup.d.gid || 0) + "  •  UID " + (historyPopup.d.uid || 0)
+                                color: Colors.text_muted
+                                font.family: Colors.font_family
+                                font.pixelSize: Colors.font_size_secondary
+                            }
+                            Text {
+                                visible: Number(historyPopup.d.jet) >= 0
+                                text: "Jet " + Number(historyPopup.d.jet).toFixed(1) + "%"
+                                color: Number(historyPopup.d.jet) >= Colors.JET_GREEN ? Colors.success
+                                     : Number(historyPopup.d.jet) >= Colors.JET_YELLOW ? Colors.warning
+                                     : Colors.danger
+                                font.family: Colors.font_family
+                                font.pixelSize: Colors.font_size_ui
+                                font.bold: true
+                            }
+                        }
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 6
+                            ThemedButton {
+                                label: historyPopup.imgLabel
+                                tooltip: "Copier la carte image"
+                                onClicked: {
+                                    if (app.copyHistoryDetailImage()) {
+                                        historyPopup.imgLabel = "Copiée"
+                                        histImgReset.restart()
+                                    }
+                                }
+                            }
+                            ThemedButton {
+                                label: "Fermer"
+                                onClicked: historyPopup.close()
+                            }
+                        }
+                    }
+
+                    Row {
+                        width: parent.width
+                        spacing: 16
+                        Text {
+                            text: (historyPopup.d.poses || 0) + " pose(s)"
+                            color: Colors.text
+                            font.family: Colors.font_family
+                            font.pixelSize: Colors.font_size_ui
+                        }
+                        KamaAmount {
+                            amount: historyPopup.d.cost || ""
+                            iconSize: 12
+                            pixelSize: Colors.font_size_ui
+                            bold: true
+                        }
+                        Text {
+                            visible: (historyPopup.d.avg || "") !== ""
+                            text: "moy. " + (historyPopup.d.avg || "")
+                            color: Colors.text_muted
+                            font.family: Colors.font_family
+                            font.pixelSize: Colors.font_size_secondary
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: "Succès " + (historyPopup.d.sc || 0)
+                            color: Colors.success
+                            font.family: Colors.font_family
+                            font.pixelSize: Colors.font_size_secondary
+                            font.bold: true
+                        }
+                        Text {
+                            text: "Neutre " + (historyPopup.d.sn || 0)
+                            color: Colors.primary_bright
+                            font.family: Colors.font_family
+                            font.pixelSize: Colors.font_size_secondary
+                            font.bold: true
+                        }
+                        Text {
+                            text: "Échec " + (historyPopup.d.ec || 0)
+                            color: Colors.danger
+                            font.family: Colors.font_family
+                            font.pixelSize: Colors.font_size_secondary
+                            font.bold: true
+                        }
+                    }
+                    Text {
+                        visible: (historyPopup.d.exoSummary || "") !== ""
+                        text: "Exo  " + (historyPopup.d.exoSummary || "")
+                        color: Colors.warning
+                        font.family: Colors.font_family
+                        font.pixelSize: Colors.font_size_secondary
+                    }
+
+                    Row {
+                        width: parent.width
+                        height: parent.height - 160
+                        spacing: 12
+
+                        Column {
+                            width: Math.floor((parent.width - 12) * 0.55)
+                            height: parent.height
+                            spacing: 6
+                            Text {
+                                text: "JET"
+                                color: Colors.text_muted
+                                font.family: Colors.font_family
+                                font.pixelSize: Colors.font_size_secondary
+                                font.bold: true
+                            }
+                            ListView {
+                                width: parent.width
+                                height: parent.height - 22
+                                clip: true
+                                model: historyPopup.d.stats || []
+                                spacing: 3
+                                boundsBehavior: Flickable.StopAtBounds
+                                delegate: StatChip {
+                                    width: ListView.view.width
+                                    statName: modelData.name
+                                    statColor: modelData.over ? "#d4b45a" : (modelData.exo ? "#5a9fd4" : modelData.color)
+                                    statValue: modelData.value
+                                    statPct: modelData.pct || ""
+                                    statIcon: modelData.icon || ""
+                                    negative: modelData.negative
+                                }
+                                Text {
+                                    visible: parent.count === 0
+                                    anchors.centerIn: parent
+                                    text: "Pas de jet enregistre"
+                                    color: Colors.text_muted
+                                    font.family: Colors.font_family
+                                    font.pixelSize: Colors.font_size_secondary
+                                }
+                            }
+                        }
+
+                        Column {
+                            width: Math.floor((parent.width - 12) * 0.45)
+                            height: parent.height
+                            spacing: 6
+                            Text {
+                                text: "RUNES"
+                                color: Colors.text_muted
+                                font.family: Colors.font_family
+                                font.pixelSize: Colors.font_size_secondary
+                                font.bold: true
+                            }
+                            ListView {
+                                width: parent.width
+                                height: parent.height - 22
+                                clip: true
+                                model: historyPopup.d.runes || []
+                                spacing: 4
+                                boundsBehavior: Flickable.StopAtBounds
+                                delegate: Row {
+                                    width: ListView.view.width
+                                    height: 22
+                                    spacing: 6
+                                    Image {
+                                        visible: (modelData.icon || "") !== ""
+                                        width: 18; height: 18
+                                        source: modelData.icon || ""
+                                        fillMode: Image.PreserveAspectFit
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    Text {
+                                        width: Math.max(40, parent.width - 130)
+                                        text: modelData.name
+                                        color: Colors.text
+                                        font.family: Colors.font_family
+                                        font.pixelSize: Colors.font_size_ui
+                                        elide: Text.ElideRight
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    Text {
+                                        width: 36
+                                        text: "×" + modelData.count
+                                        color: Colors.text
+                                        font.family: Colors.font_family
+                                        font.pixelSize: Colors.font_size_ui
+                                        font.bold: true
+                                        horizontalAlignment: Text.AlignRight
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    KamaAmount {
+                                        amount: modelData.cost || ""
+                                        iconSize: 11
+                                        pixelSize: Colors.font_size_secondary
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+                                Text {
+                                    visible: parent.count === 0
+                                    anchors.centerIn: parent
+                                    text: "Pas de runes enregistrees"
+                                    color: Colors.text_muted
+                                    font.family: Colors.font_family
+                                    font.pixelSize: Colors.font_size_secondary
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Timer {
+                    id: histImgReset
+                    interval: 1800
+                    onTriggered: historyPopup.imgLabel = "Image"
                 }
             }
         }
@@ -1286,6 +1563,34 @@ ApplicationWindow {
                     Column {
                         width: parent.width
                         spacing: 8
+
+                        SettingsRow {
+                            label: "Historique"
+                            hint: "Objets gardes, carte image incluse"
+                            Row {
+                                spacing: 4
+                                ThemedButton {
+                                    label: "10"
+                                    accent: app.historyLimit === 10
+                                    onClicked: app.setHistoryLimit(10)
+                                }
+                                ThemedButton {
+                                    label: "25"
+                                    accent: app.historyLimit === 25
+                                    onClicked: app.setHistoryLimit(25)
+                                }
+                                ThemedButton {
+                                    label: "50"
+                                    accent: app.historyLimit === 50
+                                    onClicked: app.setHistoryLimit(50)
+                                }
+                                ThemedButton {
+                                    label: "100"
+                                    accent: app.historyLimit === 100
+                                    onClicked: app.setHistoryLimit(100)
+                                }
+                            }
+                        }
 
                         SettingsRow {
                             label: "Version " + app.appVersion
