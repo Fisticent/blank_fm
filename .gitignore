@@ -13,6 +13,7 @@ venv/
 # Session perso
 fm_history.json
 fm_settings.json
+prices_history.json
 /protocol_map.json
 dofus_fm.log
 _scratch/
@@ -28,3 +29,4 @@ pcaps/
 .reasonix/
 reasonix.toml
 graphify-out/
+agent/

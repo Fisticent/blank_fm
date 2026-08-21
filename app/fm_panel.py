@@ -36,12 +36,14 @@ from fm_decoder import (EFFECTS, ITEMS, RUNES, MALUS_EFFECTS, effect_name,
                         effect_str, item_name, known_item_gid)
 from fetch_runes import rune_weight
 from item_jet import get_template, global_jet_pct
-from paths import data_file, SCRATCH_DIR
+from paths import data_file, SCRATCH_DIR, PROJECT_DIR
 from proto_learn import PROTO, classify_payload, DEFAULT_MAP
 
 PORT_GAME = 5555
 FORGE_SLOT = 63   # emplacement de l'item dans l'interface de forgemagie
 RUNE_LOW_QTY = 30
+PRICES_HISTORY_PATH = os.path.join(PROJECT_DIR, "prices_history.json")
+PRICE_HISTORY_KEEP = 120
 
 # Densite (poids de base) par effectId — source DPLN (poids simple), cf.
 # dofuspourlesnoobs.com/guide-forgemagie.html. Inconnu -> 1.0 (fallback).
@@ -183,9 +185,9 @@ class FmPanel:
             except OSError:
                 pass
         self.n += 1
-        if PROTO.learned:
-            self.proto_status = PROTO.status()
-            PROTO.learned = False
+        st = PROTO.status()
+        if st != self.proto_status:
+            self.proto_status = st
         if kind == "rune_echo" and obj:
             self._rune = obj
             self._note_rune_uid(getattr(obj, "uid", 0), getattr(obj, "gid", 0))
@@ -214,6 +216,9 @@ class FmPanel:
                     self.puit = st.puit
                 if st.uid:
                     self.item_uid = st.uid
+                if getattr(st, "slot", 0):
+                    self.item_slot = st.slot
+                    PROTO.item_slot = st.slot
                 if not self.item_gid and known_item_gid(st.gid):
                     self.item_gid = st.gid
                     self.item_name = item_name(st.gid)
@@ -237,6 +242,7 @@ class FmPanel:
                         self.item_uid = st.uid
                     if st.slot:
                         self.item_slot = st.slot
+                        PROTO.item_slot = st.slot
                     if st.gid and st.gid != self.item_gid:
                         self.item_gid = st.gid
                         self.item_name = item_name(st.gid)
@@ -384,11 +390,49 @@ class FmPanel:
             if self.prices.get(gid_i) != price_i:
                 self.prices[gid_i] = price_i
                 changed = True
-        if not changed:
+        if changed:
+            self.prices_rev += 1
+            self._save_prices()
+        self._record_price_day()
+        if changed:
+            self._render()
+
+    def _load_price_days(self) -> dict:
+        try:
+            with open(PRICES_HISTORY_PATH, encoding="utf-8") as f:
+                raw = json.load(f)
+            days = raw.get("days") if isinstance(raw, dict) else None
+            return days if isinstance(days, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def _record_price_day(self) -> None:
+        if not self.prices:
             return
-        self.prices_rev += 1
-        self._save_prices()
-        self._render()
+        days = self._load_price_days()
+        today = datetime.now().strftime("%Y-%m-%d")
+        days[today] = {}
+        for k, v in self.prices.items():
+            try:
+                n = int(v)
+            except (TypeError, ValueError):
+                continue
+            if n > 0:
+                days[today][str(k)] = n
+        if not days[today]:
+            days.pop(today, None)
+            return
+        keys = sorted(d for d in days if isinstance(d, str) and len(d) == 10)
+        drop = keys[:-PRICE_HISTORY_KEEP] if len(keys) > PRICE_HISTORY_KEEP else []
+        for k in drop:
+            days.pop(k, None)
+        tmp = PRICES_HISTORY_PATH + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"days": days}, f, ensure_ascii=False)
+            os.replace(tmp, PRICES_HISTORY_PATH)
+        except OSError as e:
+            print("[DOFUS-FM] prices_history.json:", e, file=sys.stderr)
 
     def _load_prices(self) -> None:
         """Table des prix moyens {gid: kamas} (prices.json, optionnel)."""

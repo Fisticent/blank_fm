@@ -9,8 +9,10 @@ Row {
     property int pixelSize: Colors.font_size_ui
     property bool bold: false
     property bool icon: true
+    property bool alignRight: false
     spacing: 4
     visible: root.amount.length > 0
+    layoutDirection: root.alignRight ? Qt.RightToLeft : Qt.LeftToRight
 
     readonly property bool showIcon: root.icon && app.kamaIcon.length > 0 && root.amount.indexOf("(") < 0
 

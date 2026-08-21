@@ -12,13 +12,13 @@ import sys
 import threading
 import urllib.request
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from typing import Optional
 
 from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer, QUrl, QCoreApplication
 from PySide6.QtGui import QGuiApplication, QDesktopServices
 
-from fm_panel import FmPanel, PORT_GAME
+from fm_panel import FmPanel, PORT_GAME, PRICES_HISTORY_PATH
 from fm_decoder import RUNES, effect_name, item_name, signed_value
 from fm_ui.constants import STAT_COLORS, STAT_COLOR_FALLBACK, APP_VERSION
 from fm_ui.fm_sounds import (
@@ -32,6 +32,7 @@ HISTORY_PATH = os.path.join(PROJECT_DIR, "fm_history.json")
 MAX_RECENT = 10
 MAX_HISTORY_POSES = 80
 IDLE_PAUSE_SEC = 10.0
+PRICE_HORIZONS = ("session", "7d", "30d")
 
 EXO_TRACK = (
     (111, "PA"),
@@ -91,12 +92,9 @@ def _exo_summary(exo: dict) -> str:
             landed = 0
         if n <= 0:
             continue
-        cost = int(rec.get("cost") or 0) if isinstance(rec, dict) else 0
         bit = f"{label} {n}"
         if landed:
             bit += f" ({landed})"
-        if cost:
-            bit += f" {_fmt_kamas(cost)}"
         parts.append(bit)
     return " · ".join(parts)
 
@@ -106,6 +104,73 @@ def _fmt_duration(seconds: float) -> str:
     h, rem = divmod(s, 3600)
     m, s = divmod(rem, 60)
     return f"{h:02d}:{m:02d}:{s:02d}"
+
+
+def _fmt_duration_short(seconds: float) -> str:
+    s = int(max(0, seconds))
+    h, rem = divmod(s, 3600)
+    m, s = divmod(rem, 60)
+    if h:
+        return f"{h}:{m:02d}:{s:02d}"
+    return f"{m}:{s:02d}"
+
+
+def _load_price_days() -> dict[str, dict[int, int]]:
+    try:
+        with open(PRICES_HISTORY_PATH, encoding="utf-8") as f:
+            raw = json.load(f)
+        days = raw.get("days") if isinstance(raw, dict) else None
+        if not isinstance(days, dict):
+            return {}
+    except (OSError, ValueError):
+        return {}
+    out: dict[str, dict[int, int]] = {}
+    for day, rec in days.items():
+        if not isinstance(day, str) or not isinstance(rec, dict):
+            continue
+        parsed = {}
+        for gid_s, price in rec.items():
+            try:
+                gid_i, price_i = int(gid_s), int(price)
+            except (TypeError, ValueError):
+                continue
+            if price_i > 0:
+                parsed[gid_i] = price_i
+        if parsed:
+            out[day] = parsed
+    return out
+
+
+def _price_compare_day(days: dict[str, dict[int, int]], horizon: str,
+                       today: date) -> Optional[str]:
+    if not days:
+        return None
+    today_s = today.isoformat()
+    if horizon == "session":
+        older = [d for d in days if d < today_s]
+        return max(older) if older else None
+    n = 7 if horizon == "7d" else 30
+    target = today - timedelta(days=n)
+    yesterday = today - timedelta(days=1)
+    d = target
+    while d <= yesterday:
+        s = d.isoformat()
+        if s in days:
+            return s
+        d += timedelta(days=1)
+    return None
+
+
+def _price_delta(now: int, then: int) -> tuple[str, str]:
+    if now <= 0 or then <= 0:
+        return "", ""
+    pct = (now - then) * 100.0 / then
+    n = int(round(pct))
+    if n > 0:
+        return f"+{n} %", "up"
+    if n < 0:
+        return f"{n} %", "down"
+    return "0 %", "flat"
 
 
 class FmPanelBridge(QObject):
@@ -142,6 +207,8 @@ class FmPanelBridge(QObject):
         self._exo = _empty_exo_counts()
         self._exo_pending_cost = 0
         self._exo_last_cost = 0
+        self._exo_first_item_sec = None
+        self._exo_mark_item_sec = None
         self._sessions: dict[int, dict] = {}
         self._seen_eids: set[int] = set()
         self._history_override: list = []
@@ -237,6 +304,7 @@ class FmPanelBridge(QObject):
                             rec["last_cost"] = int(self._exo_pending_cost)
                             self._exo_last_cost = int(self._exo_pending_cost)
                             self._exo_pending_cost = 0
+                            self._note_exo_tenta_time()
                             exo_changed = True
                             if exo_increased(before, after, tpl, eid):
                                 rec["landed"] += 1
@@ -325,6 +393,8 @@ class FmPanelBridge(QObject):
                     for eid, _ in EXO_TRACK},
             "exo_pending_cost": int(self._exo_pending_cost),
             "exo_last_cost": int(self._exo_last_cost),
+            "exo_first_item_sec": self._exo_first_item_sec,
+            "exo_mark_item_sec": self._exo_mark_item_sec,
             "seen_eids": [int(x) for x in sorted(self._seen_eids)],
             "t_item": self._t_item,
             "elapsed_item": self._item_seconds(),
@@ -363,6 +433,8 @@ class FmPanelBridge(QObject):
             "exo": rec.get("exo") or {},
             "exo_pending_cost": int(rec.get("exo_pending_cost") or 0),
             "exo_last_cost": int(rec.get("exo_last_cost") or 0),
+            "exo_first_item_sec": rec.get("exo_first_item_sec"),
+            "exo_mark_item_sec": rec.get("exo_mark_item_sec"),
             "seen_eids": seen,
             "events": rec.get("events"),
             "t_item": rec.get("t_item"),
@@ -414,6 +486,8 @@ class FmPanelBridge(QObject):
             self._exo_last_cost = int(s.get("exo_last_cost") or 0)
         except (TypeError, ValueError):
             self._exo_last_cost = 0
+        self._exo_first_item_sec = self._opt_float(s.get("exo_first_item_sec"))
+        self._exo_mark_item_sec = self._opt_float(s.get("exo_mark_item_sec"))
         self._seen_eids = {int(x) for x in (s.get("seen_eids") or [])}
         elapsed_item = s.get("elapsed_item")
         try:
@@ -460,6 +534,7 @@ class FmPanelBridge(QObject):
             self._exo = _empty_exo_counts()
             self._exo_pending_cost = 0
             self._exo_last_cost = 0
+            self._clear_exo_time()
             self._reanchor_item(0.0)
             return
         self._apply_session(saved)
@@ -483,6 +558,7 @@ class FmPanelBridge(QObject):
         self._exo = _empty_exo_counts()
         self._exo_pending_cost = 0
         self._exo_last_cost = 0
+        self._clear_exo_time()
         self._history_override = []
         self._seen_eids = set((getattr(p, "_effects", None) or {}).keys())
         self._reanchor_item(0.0)
@@ -871,6 +947,7 @@ class FmPanelBridge(QObject):
         self._last_rune_at = None
         self._t0 = now
         self._t_item = now
+        self._clear_exo_time()
 
     def _reanchor_item(self, elapsed: float) -> None:
         extra = self._clock_delta()
@@ -883,6 +960,24 @@ class FmPanelBridge(QObject):
     def _on_rune_posed(self) -> None:
         self._last_rune_at = datetime.now()
         self._resume_clock()
+
+    def _opt_float(self, raw) -> Optional[float]:
+        if raw is None or raw == "":
+            return None
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return None
+
+    def _clear_exo_time(self) -> None:
+        self._exo_first_item_sec = None
+        self._exo_mark_item_sec = None
+
+    def _note_exo_tenta_time(self) -> None:
+        now_s = self._item_seconds()
+        if self._exo_first_item_sec is None:
+            self._exo_first_item_sec = now_s
+        self._exo_mark_item_sec = now_s
 
     def _idle_should_pause(self) -> bool:
         if self._clock_paused:
@@ -918,8 +1013,17 @@ class FmPanelBridge(QObject):
 
     @Property(str, notify=updated)
     def protoStatus(self) -> str:
+        from proto_learn import PROTO
+        return PROTO.status()
+
+    @Slot()
+    def relearnProto(self):
+        from proto_learn import PROTO
+        PROTO.relearn()
         p = self._p
-        return getattr(p, "proto_status", "") if p else ""
+        if p is not None:
+            p.proto_status = PROTO.status()
+        self.updated.emit()
 
     @Property(str, notify=updated)
     def itemName(self) -> str:
@@ -1014,21 +1118,43 @@ class FmPanelBridge(QObject):
         local = os.path.join(self._rune_icon_dir(), f"{gid}.png")
         if os.path.isfile(local) and os.path.getsize(local) > 32:
             return QUrl.fromLocalFile(local).toString()
-        if icon_id:
-            try:
-                self._ensure_rune_icon(gid, int(icon_id), local)
-            except (TypeError, ValueError):
-                pass
+        try:
+            iid = int(icon_id) if icon_id else 0
+        except (TypeError, ValueError):
+            iid = 0
+        self._ensure_rune_icon(gid, iid, local)
         return ""
+
+    def _fetch_rune_icon_id(self, gid: int) -> int:
+        import urllib.request
+        headers = {"User-Agent": "dofus-fm/1.0", "Accept": "application/json"}
+        try:
+            req = urllib.request.Request(
+                f"https://api.dofusdb.fr/items/{gid}", headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as r:
+                d = json.loads(r.read().decode())
+            iid = int(d.get("iconId") or 0)
+            if iid:
+                return iid
+        except Exception:
+            pass
+        try:
+            req = urllib.request.Request(
+                f"https://api.dofusdu.de/dofus3/v1/fr/items/resources/{gid}",
+                headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as r:
+                d = json.loads(r.read().decode())
+            url = (d.get("image_urls") or {}).get("icon") or ""
+            base = url.rsplit("/", 1)[-1]
+            digits = base.split("-", 1)[0].split(".", 1)[0]
+            return int(digits)
+        except Exception:
+            return 0
 
     def _ensure_rune_icon(self, gid: int, icon_id: int, local: str) -> None:
         if gid in self._rune_dl:
             return
         self._rune_dl.add(gid)
-        urls = [
-            f"https://api.dofusdu.de/dofus3/v1/img/item/{icon_id}-64.png",
-            f"https://api.dofusdb.fr/img/items/{icon_id}.png",
-        ]
 
         def _dl():
             with self._rune_dl_lock:
@@ -1036,6 +1162,15 @@ class FmPanelBridge(QObject):
                     self.runeIconReady.emit(
                         gid, QUrl.fromLocalFile(local).toString())
                     return
+                iid = icon_id
+                if not iid:
+                    iid = self._fetch_rune_icon_id(gid)
+                if not iid:
+                    return
+                urls = [
+                    f"https://api.dofusdu.de/dofus3/v1/img/item/{iid}-64.png",
+                    f"https://api.dofusdb.fr/img/items/{iid}.png",
+                ]
                 os.makedirs(os.path.dirname(local), exist_ok=True)
                 import urllib.request
                 data = b""
@@ -1188,6 +1323,16 @@ class FmPanelBridge(QObject):
             return ""
         return _fmt_kamas(int(round(total / attempts)))
 
+    @Property(str, notify=updated)
+    def exoAvgTimeFormatted(self) -> str:
+        attempts = 0
+        for rec in self._exo.values():
+            attempts += int(rec.get("attempts") or 0)
+        if attempts <= 0 or self._exo_first_item_sec is None:
+            return ""
+        elapsed = max(0.0, self._item_seconds() - float(self._exo_first_item_sec))
+        return _fmt_duration_short(elapsed / attempts) + " /t"
+
     @Slot(str, result=int)
     def issueCount(self, key: str) -> int:
         return self._issue(key)
@@ -1318,6 +1463,8 @@ class FmPanelBridge(QObject):
                     for eid, _ in EXO_TRACK},
             "exo_pending_cost": int(self._exo_pending_cost),
             "exo_last_cost": int(self._exo_last_cost),
+            "exo_first_item_sec": self._exo_first_item_sec,
+            "exo_mark_item_sec": self._exo_mark_item_sec,
             "exoSummary": _exo_summary(self._exo),
             "rune_by_stat": {str(k): int(v)
                              for k, v in (getattr(p, "rune_by_stat", {}) or {}).items()},
@@ -1458,6 +1605,9 @@ class FmPanelBridge(QObject):
         except (OSError, ValueError):
             self._runes_rows = []
             return self._runes_rows
+        days = _load_price_days()
+        cmp_day = _price_compare_day(days, self.priceHorizon, date.today())
+        compare_prices = days.get(cmp_day or "") or {}
         rows = []
         for gid_s, d in (raw or {}).items():
             try:
@@ -1473,6 +1623,8 @@ class FmPanelBridge(QObject):
             price = int(self.prices.get(gid, 0) or 0)
             icon_id = d.get("icon")
             icon = self._rune_icon_for(gid, icon_id)
+            then = (compare_prices or {}).get(gid) or 0
+            delta_label, delta_dir = _price_delta(price, then) if price else ("", "")
             rows.append({
                 "gid": gid,
                 "name": name,
@@ -1483,6 +1635,8 @@ class FmPanelBridge(QObject):
                     str(int(w)) if float(w).is_integer() else str(w)),
                 "price": _fmt_kamas(price) if price else "",
                 "priceNum": price,
+                "priceDeltaLabel": delta_label,
+                "priceDeltaDir": delta_dir,
                 "level": int(d.get("level") or 0),
                 "icon": icon,
             })
@@ -1519,6 +1673,25 @@ class FmPanelBridge(QObject):
     def runesCatalogCount(self) -> int:
         return len(self.runesCatalogModel)
 
+    @Property(str, notify=runesChanged)
+    def priceHorizon(self) -> str:
+        hz = self._settings.get("price_horizon") or "session"
+        return hz if hz in PRICE_HORIZONS else "session"
+
+    @Slot(str)
+    def set_price_horizon(self, horizon: str):
+        hz = horizon if horizon in PRICE_HORIZONS else "session"
+        if self._settings.get("price_horizon") == hz:
+            return
+        self._settings["price_horizon"] = hz
+        self._save_settings()
+        self._runes_rows = None
+        self.runesChanged.emit()
+
+    @Slot(str)
+    def setPriceHorizon(self, horizon: str):
+        self.set_price_horizon(horizon)
+
     def _default_settings(self) -> dict:
         return {
             "sound_exo": True,
@@ -1531,6 +1704,7 @@ class FmPanelBridge(QObject):
             "overlay_w": -1,
             "overlay_h": -1,
             "rules": [dict(r) for r in DEFAULT_RULES],
+            "price_horizon": "session",
         }
 
     def _load_settings(self) -> dict:
@@ -1549,6 +1723,9 @@ class FmPanelBridge(QObject):
                     cfg["overlay_enabled"] = bool(data["overlay_enabled"])
                 if "overlay_low_runes" in data:
                     cfg["overlay_low_runes"] = bool(data["overlay_low_runes"])
+                hz = data.get("price_horizon")
+                if hz in PRICE_HORIZONS:
+                    cfg["price_horizon"] = hz
                 try:
                     if "overlay_x" in data:
                         cfg["overlay_x"] = int(data["overlay_x"])

@@ -190,6 +190,7 @@ def fetch_dude(out_json: str, out_md: str) -> int:
             "level": it.get("level"),
             "value": eff.get("int_minimum"),
             "effect_name": (eff.get("type") or {}).get("name"),
+            "icon": _icon_id_from_url((it.get("image_urls") or {}).get("icon") or ""),
         }
     # Regle DPLN : une variante Pa/Ra sans poids dans la table n'existe pas
     # (les GIDs correspondants dans les donnees DofusDude sont residuels).
@@ -228,7 +229,7 @@ def fetch_dude(out_json: str, out_md: str) -> int:
             "effectId": o.get("effectId") or name_to_eff.get(_norm(d.get("effect_name") or "")),
             "value": o.get("value", d.get("value")),
             "level": d.get("level"),
-            "icon": o.get("icon"),
+            "icon": o.get("icon") or d.get("icon"),
             "effect_name": d.get("effect_name"),
         }
     _write(merged, out_json, out_md)
@@ -241,6 +242,18 @@ def fetch_dude(out_json: str, out_md: str) -> int:
     if lost:
         print("GIDs dofusdb absents de DofusDude :", lost)
     return len(runes)
+
+
+def _icon_id_from_url(url: str) -> int | None:
+    """Extrait l'iconId d'une URL DofusDude (.../item/78269-64.png)."""
+    if not url:
+        return None
+    base = url.rsplit("/", 1)[-1]
+    digits = base.split("-", 1)[0].split(".", 1)[0]
+    try:
+        return int(digits)
+    except ValueError:
+        return None
 
 
 def _is_pa_ra(name: str) -> bool:

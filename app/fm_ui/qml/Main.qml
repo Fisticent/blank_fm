@@ -362,6 +362,14 @@ ApplicationWindow {
                                 font.family: Colors.font_family
                                 font.pixelSize: Colors.font_size_ui
                             }
+                            Text {
+                                visible: app.exoAvgTimeFormatted.length > 0
+                                text: "Exo " + app.exoAvgTimeFormatted
+                                color: Colors.text
+                                font.family: Colors.font_family
+                                font.pixelSize: Colors.font_size_ui
+                                font.bold: true
+                            }
                         }
                     }
                 }
@@ -745,6 +753,26 @@ ApplicationWindow {
             anchors.margins: 12
             anchors.topMargin: 8
             anchors.bottomMargin: 8
+            readonly property int colPad: 12
+            readonly property int colGap: 8
+            readonly property int colIcon: 36
+            readonly property int colVal: 44
+            readonly property int colPoids: 52
+            readonly property int colPrix: 140
+            function colInner() {
+                return Math.max(200, runesList.width)
+            }
+            function colFlex() {
+                // pad, icon, name, stat, val, poids, prix, pad → 8 enfants, 7 gouttières
+                var fixed = colPad * 2 + colIcon + colVal + colPoids + colPrix + colGap * 7
+                return Math.max(80, colInner() - fixed)
+            }
+            function colName() {
+                return Math.floor(colFlex() * 0.56)
+            }
+            function colStat() {
+                return Math.max(70, colFlex() - colName())
+            }
 
             SectionCard {
                 anchors.fill: parent
@@ -754,44 +782,75 @@ ApplicationWindow {
                     anchors.fill: parent
                     spacing: 8
 
-                    Rectangle {
+                    Row {
                         width: parent.width
                         height: 30
-                        radius: Colors.radius_control
-                        color: Colors.bg_elevated
-                        border.width: 1
-                        border.color: Colors.separator
-                        TextInput {
-                            id: runeSearch
-                            anchors.fill: parent
-                            anchors.leftMargin: 10
-                            anchors.rightMargin: 10
-                            verticalAlignment: Text.AlignVCenter
-                            color: Colors.text
-                            font.family: Colors.font_family
-                            font.pixelSize: Colors.font_size_ui
-                            clip: true
-                            onTextChanged: app.setRuneFilter(text)
+                        spacing: 8
+
+                        Rectangle {
+                            width: Math.max(160, parent.width - horizonRow.width - 8)
+                            height: parent.height
+                            radius: Colors.radius_control
+                            color: Colors.bg_elevated
+                            border.width: 1
+                            border.color: Colors.separator
+                            TextInput {
+                                id: runeSearch
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                verticalAlignment: Text.AlignVCenter
+                                color: Colors.text
+                                font.family: Colors.font_family
+                                font.pixelSize: Colors.font_size_ui
+                                clip: true
+                                onTextChanged: app.setRuneFilter(text)
+                            }
+                            Text {
+                                visible: runeSearch.text.length === 0 && !runeSearch.activeFocus
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.leftMargin: 10
+                                text: "Filtrer par nom, stat ou GID"
+                                color: Colors.text_muted
+                                font.family: Colors.font_family
+                                font.pixelSize: Colors.font_size_ui
+                            }
                         }
-                        Text {
-                            visible: runeSearch.text.length === 0 && !runeSearch.activeFocus
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.leftMargin: 10
-                            text: "Filtrer par nom, stat ou GID"
-                            color: Colors.text_muted
-                            font.family: Colors.font_family
-                            font.pixelSize: Colors.font_size_ui
+
+                        Row {
+                            id: horizonRow
+                            spacing: 4
+                            height: parent.height
+                            ThemedButton {
+                                label: "Session"
+                                accent: app.priceHorizon === "session"
+                                anchors.verticalCenter: parent.verticalCenter
+                                onClicked: app.setPriceHorizon("session")
+                            }
+                            ThemedButton {
+                                label: "7j"
+                                accent: app.priceHorizon === "7d"
+                                anchors.verticalCenter: parent.verticalCenter
+                                onClicked: app.setPriceHorizon("7d")
+                            }
+                            ThemedButton {
+                                label: "30j"
+                                accent: app.priceHorizon === "30d"
+                                anchors.verticalCenter: parent.verticalCenter
+                                onClicked: app.setPriceHorizon("30d")
+                            }
                         }
                     }
 
                     Row {
                         width: parent.width
                         height: 18
-                        spacing: 8
-                        Item { width: 40; height: 1 }
+                        spacing: runesPage.colGap
+                        Item { width: runesPage.colPad; height: 1 }
+                        Item { width: runesPage.colIcon; height: 1 }
                         Text {
-                            width: Math.max(120, parent.width * 0.28)
+                            width: runesPage.colName()
                             text: "Rune"
                             color: Colors.text_muted
                             font.family: Colors.font_family
@@ -799,7 +858,7 @@ ApplicationWindow {
                             font.bold: true
                         }
                         Text {
-                            width: Math.max(90, parent.width * 0.22)
+                            width: runesPage.colStat()
                             text: "Stat"
                             color: Colors.text_muted
                             font.family: Colors.font_family
@@ -807,7 +866,7 @@ ApplicationWindow {
                             font.bold: true
                         }
                         Text {
-                            width: 50
+                            width: runesPage.colVal
                             text: "Val."
                             color: Colors.text_muted
                             font.family: Colors.font_family
@@ -816,7 +875,7 @@ ApplicationWindow {
                             horizontalAlignment: Text.AlignRight
                         }
                         Text {
-                            width: 50
+                            width: runesPage.colPoids
                             text: "Poids"
                             color: Colors.text_muted
                             font.family: Colors.font_family
@@ -825,7 +884,7 @@ ApplicationWindow {
                             horizontalAlignment: Text.AlignRight
                         }
                         Text {
-                            width: 90
+                            width: runesPage.colPrix
                             text: "Prix moyen"
                             color: Colors.text_muted
                             font.family: Colors.font_family
@@ -833,6 +892,7 @@ ApplicationWindow {
                             font.bold: true
                             horizontalAlignment: Text.AlignRight
                         }
+                        Item { width: runesPage.colPad; height: 1 }
                     }
 
                     ListView {
@@ -845,21 +905,22 @@ ApplicationWindow {
                         boundsBehavior: Flickable.StopAtBounds
                         delegate: Rectangle {
                             width: runesList.width
-                            height: 44
+                            height: 52
                             radius: Colors.radius_control
                             color: Colors.bg_elevated
                             border.width: 1
                             border.color: Colors.separator
 
                             Row {
-                                anchors.fill: parent
-                                anchors.leftMargin: 8
-                                anchors.rightMargin: 10
-                                spacing: 8
+                                width: parent.width
+                                height: parent.height
+                                spacing: runesPage.colGap
+
+                                Item { width: runesPage.colPad; height: 1 }
 
                                 Image {
-                                    width: 36
-                                    height: 36
+                                    width: runesPage.colIcon
+                                    height: runesPage.colIcon
                                     anchors.verticalCenter: parent.verticalCenter
                                     source: modelData.icon || ""
                                     fillMode: Image.PreserveAspectFit
@@ -868,7 +929,7 @@ ApplicationWindow {
                                 }
 
                                 Text {
-                                    width: Math.max(120, runesList.width * 0.28)
+                                    width: runesPage.colName()
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: modelData.name
                                     color: Colors.text
@@ -878,7 +939,7 @@ ApplicationWindow {
                                     elide: Text.ElideRight
                                 }
                                 Text {
-                                    width: Math.max(90, runesList.width * 0.22)
+                                    width: runesPage.colStat()
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: modelData.stat
                                     color: Colors.text_muted
@@ -887,7 +948,7 @@ ApplicationWindow {
                                     elide: Text.ElideRight
                                 }
                                 Text {
-                                    width: 50
+                                    width: runesPage.colVal
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: modelData.value
                                     color: Colors.text
@@ -896,7 +957,7 @@ ApplicationWindow {
                                     horizontalAlignment: Text.AlignRight
                                 }
                                 Text {
-                                    width: 50
+                                    width: runesPage.colPoids
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: modelData.weight
                                     color: Colors.primary_bright
@@ -904,14 +965,34 @@ ApplicationWindow {
                                     font.pixelSize: Colors.font_size_ui
                                     horizontalAlignment: Text.AlignRight
                                 }
-                                KamaAmount {
-                                    width: 100
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    amount: modelData.price || ""
-                                    iconSize: 13
-                                    pixelSize: Colors.font_size_ui
-                                    bold: true
+                                Item {
+                                    width: runesPage.colPrix
+                                    height: parent.height
+                                    Column {
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        spacing: 1
+                                        KamaAmount {
+                                            anchors.right: parent.right
+                                            amount: modelData.price || ""
+                                            iconSize: 13
+                                            pixelSize: Colors.font_size_ui
+                                            bold: true
+                                        }
+                                        Text {
+                                            visible: (modelData.priceDeltaLabel || "") !== ""
+                                            anchors.right: parent.right
+                                            text: modelData.priceDeltaLabel || ""
+                                            color: modelData.priceDeltaDir === "up" ? Colors.success
+                                                 : modelData.priceDeltaDir === "down" ? Colors.danger
+                                                 : Colors.text_muted
+                                            font.family: Colors.font_family
+                                            font.pixelSize: Colors.font_size_secondary
+                                            font.bold: modelData.priceDeltaDir === "up" || modelData.priceDeltaDir === "down"
+                                        }
+                                    }
                                 }
+                                Item { width: runesPage.colPad; height: 1 }
                             }
                         }
                         Text {
@@ -955,195 +1036,82 @@ ApplicationWindow {
                 return rows[settingsPage.statPickIndex].name
             }
 
-            Column {
+            Flickable {
+                id: settingsFlick
                 anchors.fill: parent
-                spacing: 10
+                clip: true
+                contentWidth: width
+                contentHeight: settingsCol.implicitHeight
+                boundsBehavior: Flickable.StopAtBounds
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                }
+
+                Column {
+                    id: settingsCol
+                    width: settingsFlick.width
+                    spacing: 10
 
                 SectionCard {
                     width: parent.width
-                    height: 118
-                    title: "SONS"
+                    autoHeight: true
+                    title: "PENDANT LA FM"
 
-                    Flow {
-                        anchors.fill: parent
-                        spacing: 28
+                    Column {
+                        width: parent.width
+                        spacing: 10
 
-                        Row {
-                            spacing: 10
-                            Text {
-                                text: "Son exo (joyeux)"
-                                color: Colors.text
-                                font.family: Colors.font_family
-                                font.pixelSize: Colors.font_size_ui
-                                anchors.verticalCenter: parent.verticalCenter
+                        SettingsRow {
+                            label: "Overlay"
+                            hint: "Coût, temps, tentatives d'exo"
+                            ThemedSwitch {
+                                checked: app.overlayEnabled
+                                onClicked: app.setOverlayEnabled(!app.overlayEnabled)
                             }
+                        }
+                        SettingsRow {
+                            label: "Alerte stock runes"
+                            hint: "Si une rune passe sous 30"
+                            ThemedSwitch {
+                                checked: app.overlayLowRunesEnabled
+                                onClicked: app.setOverlayLowRunesEnabled(!app.overlayLowRunesEnabled)
+                            }
+                        }
+                        SettingsRow {
+                            label: "Son exo"
                             ThemedSwitch {
                                 checked: app.soundExoEnabled
                                 onClicked: app.setSoundExoEnabled(!app.soundExoEnabled)
                             }
                         }
-                        Row {
-                            spacing: 10
-                            Text {
-                                text: "Son perte"
-                                color: Colors.text
-                                font.family: Colors.font_family
-                                font.pixelSize: Colors.font_size_ui
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
+                        SettingsRow {
+                            label: "Son perte"
                             ThemedSwitch {
                                 checked: app.soundPerteEnabled
                                 onClicked: app.setSoundPerteEnabled(!app.soundPerteEnabled)
                             }
                         }
-                        Row {
-                            spacing: 10
-                            Text {
-                                text: "Pleurs (exo raté)"
-                                color: Colors.text
-                                font.family: Colors.font_family
-                                font.pixelSize: Colors.font_size_ui
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
+                        SettingsRow {
+                            label: "Pleurs (exo raté)"
                             ThemedSwitch {
                                 checked: app.soundExoFailEnabled
                                 onClicked: app.setSoundExoFailEnabled(!app.soundExoFailEnabled)
                             }
                         }
-                    }
-                }
 
-                SectionCard {
-                    width: parent.width
-                    height: 72
-                    title: "PROTOCOLE"
-                    Text {
-                        anchors.fill: parent
-                        text: app.protoStatus || "Noms de messages figes (kfb / kdr / iuj). Un proto Dofus different peut casser la lecture jusqu'a un patch de l'outil."
-                        color: Colors.text_muted
-                        font.family: Colors.font_family
-                        font.pixelSize: Colors.font_size_secondary
-                        wrapMode: Text.WordWrap
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                }
-
-                SectionCard {
-                    width: parent.width
-                    height: 72
-                    title: "VERSION"
-                    Row {
-                        anchors.fill: parent
-                        spacing: 10
-                        Text {
-                            text: "Dofus FM " + app.appVersion + (app.updateAvailable ? (" · " + app.updateMessage) : " · a jour au lancement.")
-                            color: Colors.text
-                            font.family: Colors.font_family
-                            font.pixelSize: Colors.font_size_ui
-                            wrapMode: Text.WordWrap
-                            width: parent.width - 180
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                        ThemedButton {
-                            label: app.updateAvailable ? (app.updateBusy ? "Patiente…" : "Mettre a jour") : "Verifier"
-                            enabled: !app.updateBusy
-                            accent: app.updateAvailable
-                            onClicked: app.updateAvailable ? app.applyUpdate() : app.checkForUpdate()
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-                }
-
-                SectionCard {
-                    width: parent.width
-                    height: 88
-                    title: "CAPTURE NPCAP"
-                    Row {
-                        anchors.fill: parent
-                        spacing: 10
-                        Text {
-                            text: app.npcapInstalled
-                                  ? "Npcap detecte, la capture live peut tourner."
-                                  : app.npcapMessage
-                            color: Colors.text
-                            font.family: Colors.font_family
-                            font.pixelSize: Colors.font_size_ui
-                            wrapMode: Text.WordWrap
-                            width: parent.width - 180
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                        ThemedButton {
-                            label: app.npcapInstalled ? "Verifier" : (app.npcapBusy ? "Telechargement…" : "Installer Npcap")
-                            enabled: !app.npcapBusy
-                            accent: !app.npcapInstalled
-                            onClicked: app.npcapInstalled ? app.refreshNpcap() : app.installNpcap()
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-                }
-
-                SectionCard {
-                    width: parent.width
-                    height: 108
-                    title: "OVERLAY"
-                    Column {
-                        anchors.fill: parent
-                        spacing: 8
-                        Row {
-                            spacing: 10
+                        Rectangle {
                             width: parent.width
-                            Text {
-                                text: "Toujours au-dessus : coût, temps, tentatives d'exo"
-                                color: Colors.text
-                                font.family: Colors.font_family
-                                font.pixelSize: Colors.font_size_ui
-                                wrapMode: Text.WordWrap
-                                width: parent.width - 70
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                            ThemedSwitch {
-                                checked: app.overlayEnabled
-                                onClicked: app.setOverlayEnabled(!app.overlayEnabled)
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
+                            height: 1
+                            color: Colors.separator
                         }
-                        Row {
-                            spacing: 10
-                            width: parent.width
-                            Text {
-                                text: "Alerte stock runes (moins de 30)"
-                                color: Colors.text
-                                font.family: Colors.font_family
-                                font.pixelSize: Colors.font_size_ui
-                                wrapMode: Text.WordWrap
-                                width: parent.width - 70
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                            ThemedSwitch {
-                                checked: app.overlayLowRunesEnabled
-                                onClicked: app.setOverlayLowRunesEnabled(!app.overlayLowRunesEnabled)
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                        }
-                    }
-                }
-
-                SectionCard {
-                    width: parent.width
-                    height: parent.height - 422
-                    title: "CARACTÉRISTIQUES SURVEILLÉES"
-
-                    Column {
-                        anchors.fill: parent
-                        spacing: 8
 
                         Text {
                             width: parent.width
-                            text: "Exo : jingle joyeux quand la stat dépasse le max de l'item. Perte : poin poin poin quand la stat baisse. Pleurs : wah quand une tentative d'exo ne passe pas."
+                            text: "Caractéristiques surveillées"
                             color: Colors.text_muted
                             font.family: Colors.font_family
                             font.pixelSize: Colors.font_size_secondary
-                            wrapMode: Text.WordWrap
+                            font.bold: true
                         }
 
                         Row {
@@ -1192,7 +1160,7 @@ ApplicationWindow {
                         ListView {
                             id: rulesList
                             width: parent.width
-                            height: Math.max(80, parent.height - 78)
+                            height: Math.min(188, Math.max(80, contentHeight))
                             model: app.soundRulesModel
                             spacing: 6
                             clip: true
@@ -1246,6 +1214,78 @@ ApplicationWindow {
                             }
                         }
                     }
+                }
+
+                SectionCard {
+                    width: parent.width
+                    autoHeight: true
+                    title: "CAPTURE"
+
+                    SettingsRow {
+                        label: "Npcap"
+                        hint: app.npcapInstalled ? "" : app.npcapMessage
+                        Row {
+                            spacing: 8
+                            Rectangle {
+                                implicitWidth: npcapPillText.implicitWidth + 16
+                                implicitHeight: 22
+                                height: implicitHeight
+                                width: implicitWidth
+                                radius: 11
+                                color: Colors.bg_elevated
+                                border.width: 1
+                                border.color: app.npcapInstalled ? Colors.success : Colors.warning
+                                Text {
+                                    id: npcapPillText
+                                    anchors.centerIn: parent
+                                    text: app.npcapInstalled ? "OK" : "Manquant"
+                                    color: app.npcapInstalled ? Colors.success : Colors.warning
+                                    font.family: Colors.font_family
+                                    font.pixelSize: Colors.font_size_secondary
+                                    font.bold: true
+                                }
+                            }
+                            ThemedButton {
+                                label: app.npcapInstalled ? "Verifier" : (app.npcapBusy ? "Telechargement…" : "Installer Npcap")
+                                enabled: !app.npcapBusy
+                                accent: !app.npcapInstalled
+                                onClicked: app.npcapInstalled ? app.refreshNpcap() : app.installNpcap()
+                            }
+                        }
+                    }
+                }
+
+                SectionCard {
+                    width: parent.width
+                    autoHeight: true
+                    title: "OUTIL"
+
+                    Column {
+                        width: parent.width
+                        spacing: 8
+
+                        SettingsRow {
+                            label: "Version " + app.appVersion
+                            hint: app.updateAvailable ? app.updateMessage : "A jour"
+                            ThemedButton {
+                                label: app.updateAvailable ? (app.updateBusy ? "Patiente…" : "Mettre a jour") : "Verifier"
+                                enabled: !app.updateBusy
+                                accent: app.updateAvailable
+                                onClicked: app.updateAvailable ? app.applyUpdate() : app.checkForUpdate()
+                            }
+                        }
+
+                        SettingsRow {
+                            label: "Protocole"
+                            hint: app.protoStatus || "Proto defaut (kfb / kdr / iuj)"
+                            ThemedButton {
+                                label: "Reapprendre"
+                                tooltip: "Recommence a identifier les messages apres un patch Dofus (3 poses)"
+                                onClicked: app.relearnProto()
+                            }
+                        }
+                    }
+                }
                 }
             }
 

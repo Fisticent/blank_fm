@@ -110,7 +110,7 @@ def launch_apply(src_dir: str, install_dir: str, exe_path: str, pid: int) -> Non
         "timeout /t 2 /nobreak >nul",
         'robocopy "%SRC%" "%DST%" /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP '
         "/XD _scratch captures cache "
-        "/XF fm_settings.json fm_history.json protocol_map.json",
+        "/XF fm_settings.json fm_history.json protocol_map.json prices_history.json",
         "if %ERRORLEVEL% GEQ 8 (",
         "  echo Echec de la copie.",
         "  pause",

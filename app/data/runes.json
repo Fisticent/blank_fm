@@ -386,7 +386,7 @@
  "10613": {
   "effectId": 225,
   "effect_name": "Dommage Pièges",
-  "icon": null,
+  "icon": 78023,
   "level": 45,
   "name": "Rune Pa Do Pi",
   "value": 3
@@ -410,7 +410,7 @@
  "10618": {
   "effectId": 138,
   "effect_name": "Puissance",
-  "icon": null,
+  "icon": 78269,
   "level": 20,
   "name": "Rune Pa Pui",
   "value": 3
@@ -418,7 +418,7 @@
  "10619": {
   "effectId": 138,
   "effect_name": "Puissance",
-  "icon": null,
+  "icon": 78270,
   "level": 25,
   "name": "Rune Ra Pui",
   "value": 10
@@ -426,7 +426,7 @@
  "10662": {
   "effectId": 176,
   "effect_name": "Prospection",
-  "icon": null,
+  "icon": 78271,
   "level": 20,
   "name": "Rune Pa Prospe",
   "value": 3
@@ -722,7 +722,7 @@
  "19337": {
   "effectId": 178,
   "effect_name": "Soin",
-  "icon": null,
+  "icon": 78099,
   "level": 90,
   "name": "Rune Pa So",
   "value": 3
@@ -730,7 +730,7 @@
  "19338": {
   "effectId": 242,
   "effect_name": "Résistance Air",
-  "icon": null,
+  "icon": 78100,
   "level": 35,
   "name": "Rune Pa Ré Air",
   "value": 3
@@ -738,7 +738,7 @@
  "19339": {
   "effectId": 241,
   "effect_name": "Résistance Eau",
-  "icon": null,
+  "icon": 78101,
   "level": 35,
   "name": "Rune Pa Ré Eau",
   "value": 3
@@ -746,7 +746,7 @@
  "19340": {
   "effectId": 243,
   "effect_name": "Résistance Feu",
-  "icon": null,
+  "icon": 78102,
   "level": 35,
   "name": "Rune Pa Ré Feu",
   "value": 3
@@ -754,7 +754,7 @@
  "19341": {
   "effectId": 244,
   "effect_name": "Résistance Neutre",
-  "icon": null,
+  "icon": 78103,
   "level": 35,
   "name": "Rune Pa Ré Neutre",
   "value": 3
@@ -762,7 +762,7 @@
  "19342": {
   "effectId": 240,
   "effect_name": "Résistance Terre",
-  "icon": null,
+  "icon": 78104,
   "level": 35,
   "name": "Rune Pa Ré Terre",
   "value": 3

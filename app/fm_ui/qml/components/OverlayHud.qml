@@ -289,7 +289,7 @@ Window {
             }
 
             Row {
-                visible: app.exoLastCostFormatted.length > 0 || app.exoAvgCostFormatted.length > 0
+                visible: app.exoLastCostFormatted.length > 0 || app.exoAvgCostFormatted.length > 0 || app.exoAvgTimeFormatted.length > 0
                 width: parent.width
                 spacing: 8
                 Text {
@@ -321,6 +321,15 @@ Window {
                     iconSize: 12
                     pixelSize: Colors.font_size_secondary
                     textColor: Colors.text_muted
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                    visible: app.exoAvgTimeFormatted.length > 0
+                    text: app.exoAvgTimeFormatted
+                    color: Colors.text
+                    font.family: Colors.font_family
+                    font.pixelSize: Colors.font_size_ui
+                    font.bold: true
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }

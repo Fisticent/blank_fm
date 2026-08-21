@@ -5,12 +5,19 @@ Rectangle {
     id: root
     property string title: ""
     property bool clipContent: true
+    property bool autoHeight: false
     default property alias content: body.data
 
     radius: Colors.radius_card
     color: Colors.bg_card
     border.width: 1
     border.color: Colors.separator
+    implicitHeight: {
+        var bodyH = root.autoHeight ? body.childrenRect.height : 80
+        if (titleLabel.visible)
+            return 10 + titleLabel.implicitHeight + 8 + bodyH + 12
+        return 12 + bodyH + 12
+    }
 
     Text {
         id: titleLabel
@@ -34,11 +41,12 @@ Rectangle {
         anchors.top: titleLabel.visible ? titleLabel.bottom : parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: parent.bottom
+        anchors.bottom: root.autoHeight ? undefined : parent.bottom
         anchors.topMargin: titleLabel.visible ? 8 : 12
         anchors.leftMargin: 12
         anchors.rightMargin: 12
-        anchors.bottomMargin: 12
+        anchors.bottomMargin: root.autoHeight ? 0 : 12
+        height: root.autoHeight ? childrenRect.height : undefined
         clip: root.clipContent
     }
 }
