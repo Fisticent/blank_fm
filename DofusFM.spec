@@ -18,6 +18,8 @@ hiddenimports = [
     "fm_ui.bridge",
     "fm_ui.constants",
     "fm_ui.fm_sounds",
+    "fm_ui.applog",
+    "fm_ui.share_card",
     "fm_panel",
     "fm_decoder",
     "fm_live",

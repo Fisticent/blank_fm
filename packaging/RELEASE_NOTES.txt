@@ -1,14 +1,10 @@
-Outil Forgemagie Dofus 3 (Windows), v1.0.4
+Outil Forgemagie Dofus 3 (Windows), v1.0.5
 
 - Dezippe, lance DofusFM.exe, accepte l'admin
-- Bouton Installer Npcap si besoin (telecharge l'installeur officiel)
-- Parametres recoupes (FM / Capture / Outil)
-- Prix moyen des runes : evolution Session / 7j / 30j (historique local)
-- Icones manquantes (Pa Pui, Ra Pui, etc.)
-- Proto : si Ankama renomme kfb/kdr/iuj, l'outil reapprend tout seul
-  apres 3 poses (ancre UID). Bouton Reapprendre dans Parametres.
-  Pas d'apprentissage sur le combat / la map.
-
-Si tu as v1.0.3 : bandeau vert au lancement, un clic suffit.
+- Onglet Journal : logs en live, bouton Copier pour envoyer un rapport de bug
+  (version, Npcap, proto + logs)
+- 10 derniers objets : bouton Image, copie une carte du FM (jet, stats,
+  tentatives, prix). Over en dore, exo en bleu.
+- Si tu as v1.0.4 : bandeau vert au lancement, un clic suffit.
 
 Npcap n'est pas dans le zip (licence). Capture passive, rien n'est envoye au serveur.

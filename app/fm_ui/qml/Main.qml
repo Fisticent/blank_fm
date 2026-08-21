@@ -147,6 +147,11 @@ ApplicationWindow {
                 accent: win.mainTab === 3
                 onClicked: win.mainTab = 3
             }
+            ThemedButton {
+                label: "Journal"
+                accent: win.mainTab === 4
+                onClicked: win.mainTab = 4
+            }
         }
 
         Item {
@@ -706,7 +711,7 @@ ApplicationWindow {
                             Column {
                                 anchors.verticalCenter: parent.verticalCenter
                                 spacing: 3
-                                width: 120
+                                width: 100
                                 Text {
                                     text: "Succès  " + modelData.sc
                                     color: Colors.success
@@ -727,6 +732,24 @@ ApplicationWindow {
                                     font.family: Colors.font_family
                                     font.pixelSize: Colors.font_size_secondary
                                     font.bold: true
+                                }
+                            }
+
+                            ThemedButton {
+                                property string imgLabel: "Image"
+                                label: imgLabel
+                                tooltip: "Copier une carte du FM (jet, tentatives, prix)"
+                                anchors.verticalCenter: parent.verticalCenter
+                                Timer {
+                                    id: imgCopied
+                                    interval: 1800
+                                    onTriggered: parent.imgLabel = "Image"
+                                }
+                                onClicked: {
+                                    if (app.copyShareImage(index)) {
+                                        imgLabel = "Copiée"
+                                        imgCopied.restart()
+                                    }
                                 }
                             }
                         }
@@ -1337,6 +1360,102 @@ ApplicationWindow {
                                 statPopup.close()
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        Item {
+            id: logPage
+            visible: win.mainTab === 4
+            anchors.top: tabRow.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: btnRow.top
+            anchors.margins: 12
+            anchors.topMargin: 8
+            anchors.bottomMargin: 8
+            property string copyLabel: "Copier"
+            Timer {
+                id: logCopyReset
+                interval: 1800
+                onTriggered: logPage.copyLabel = "Copier"
+            }
+
+            Row {
+                id: logToolbar
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 30
+                spacing: 8
+
+                ThemedButton {
+                    label: logPage.copyLabel
+                    accent: true
+                    tooltip: "Copie le rapport (version, proto, npcap + logs) dans le presse-papiers"
+                    onClicked: {
+                        app.copyLog()
+                        logPage.copyLabel = "Copié"
+                        logCopyReset.restart()
+                    }
+                }
+                ThemedButton {
+                    label: "Vider"
+                    tooltip: "Efface l'affichage, le fichier dofus_fm.log est conserve"
+                    onClicked: app.clearLog()
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: app.protoStatus || ""
+                    color: Colors.text_muted
+                    font.family: Colors.font_family
+                    font.pixelSize: Colors.font_size_secondary
+                    elide: Text.ElideRight
+                    width: Math.max(80, logToolbar.width - 220)
+                }
+            }
+
+            Rectangle {
+                anchors.top: logToolbar.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.topMargin: 8
+                radius: Colors.radius_card
+                color: Colors.bg_elevated
+                border.width: 1
+                border.color: Colors.separator
+                clip: true
+
+                Flickable {
+                    id: logFlick
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    clip: true
+                    contentWidth: width
+                    contentHeight: logBody.height
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar {
+                        policy: ScrollBar.AsNeeded
+                    }
+
+                    Text {
+                        id: logBody
+                        width: logFlick.width
+                        text: app.logText.length > 0
+                              ? app.logText
+                              : "Les messages de l'outil s'affichent ici.\nCopier envoie un rapport (version, Npcap, proto + logs)."
+                        color: app.logText.length > 0 ? Colors.text : Colors.text_muted
+                        font.family: "Consolas"
+                        font.pixelSize: 12
+                        wrapMode: Text.Wrap
+                        textFormat: Text.PlainText
+                        onTextChanged: Qt.callLater(function() {
+                            if (logFlick.contentHeight > logFlick.height)
+                                logFlick.contentY = Math.max(
+                                    0, logFlick.contentHeight - logFlick.height)
+                        })
                     }
                 }
             }

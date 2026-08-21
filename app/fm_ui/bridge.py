@@ -21,6 +21,7 @@ from PySide6.QtGui import QGuiApplication, QDesktopServices
 from fm_panel import FmPanel, PORT_GAME, PRICES_HISTORY_PATH
 from fm_decoder import RUNES, effect_name, item_name, signed_value
 from fm_ui.constants import STAT_COLORS, STAT_COLOR_FALLBACK, APP_VERSION
+from fm_ui import applog
 from fm_ui.fm_sounds import (
     DEFAULT_RULES, eval_cues, exo_increased, is_exo_attempt, play_cues,
 )
@@ -185,6 +186,7 @@ class FmPanelBridge(QObject):
     npcapReady = Signal()
     updateChanged = Signal()
     requestQuit = Signal()
+    logChanged = Signal()
 
     def __init__(self, qapp=None):
         super().__init__()
@@ -235,6 +237,7 @@ class FmPanelBridge(QObject):
         self._timer.start()
         self._shutting_down = False
         self._quit_requested = False
+        self._log_gen = -1
         self._npcap_ok = npcap_present()
         self._npcap_busy = False
         self._npcap_msg = (
@@ -437,6 +440,7 @@ class FmPanelBridge(QObject):
             "exo_mark_item_sec": rec.get("exo_mark_item_sec"),
             "seen_eids": seen,
             "events": rec.get("events"),
+            "effects": rec.get("effects") or {},
             "t_item": rec.get("t_item"),
             "elapsed_item": rec.get("elapsed_item"),
         }
@@ -912,6 +916,10 @@ class FmPanelBridge(QObject):
         if self._history_dirty:
             self._history_dirty = False
             self._save_history()
+        gen = applog.generation()
+        if gen != self._log_gen:
+            self._log_gen = gen
+            self.logChanged.emit()
         self.updated.emit()
 
     def _clock_delta(self) -> float:
@@ -1024,6 +1032,49 @@ class FmPanelBridge(QObject):
         if p is not None:
             p.proto_status = PROTO.status()
         self.updated.emit()
+
+    def _bug_report_header(self) -> str:
+        frozen = "portable" if getattr(sys, "frozen", False) else "dev"
+        try:
+            admin = "oui" if bool(__import__("ctypes").windll.shell32.IsUserAnAdmin()) else "non"
+        except (OSError, AttributeError):
+            admin = "?"
+        item = self.itemName if self.itemGid else "(aucun)"
+        if self.itemGid:
+            item = f"{self.itemName} (gid {self.itemGid})"
+        return "\n".join([
+            f"Dofus FM {APP_VERSION} ({frozen})",
+            f"admin: {admin}",
+            f"npcap: {'oui' if self.npcapInstalled else 'non'}",
+            f"capture: {'on' if self.captureRunning else 'off'}",
+            f"proto: {self.protoStatus or 'defaut'}",
+            f"item: {item}",
+            f"log: {applog.path() or '(memoire)'}",
+            "---",
+        ])
+
+    @Property(str, notify=logChanged)
+    def logText(self) -> str:
+        return applog.text()
+
+    @Property(str, notify=logChanged)
+    def logFilePath(self) -> str:
+        return applog.path() or ""
+
+    @Slot()
+    def copyLog(self):
+        body = applog.text().strip()
+        report = self._bug_report_header()
+        if body:
+            report = report + "\n" + body
+        QGuiApplication.clipboard().setText(report)
+        print("[DOFUS-FM] journal copie dans le presse-papiers.", file=sys.stderr)
+
+    @Slot()
+    def clearLog(self):
+        applog.clear_memory()
+        self._log_gen = applog.generation()
+        self.logChanged.emit()
 
     @Property(str, notify=updated)
     def itemName(self) -> str:
@@ -1478,6 +1529,8 @@ class FmPanelBridge(QObject):
             "current": False,
             "ts": datetime.now().isoformat(timespec="seconds"),
             "history": self._panel_history_rows(p),
+            "effects": {str(k): int(v)
+                        for k, v in (getattr(p, "_effects", None) or {}).items()},
         }
 
     def _archive_current_item(self) -> None:
@@ -1551,6 +1604,17 @@ class FmPanelBridge(QObject):
                 continue
             if not isinstance(out.get("history"), list):
                 out["history"] = []
+            eff = out.get("effects")
+            if isinstance(eff, dict):
+                clean = {}
+                for k, v in eff.items():
+                    try:
+                        clean[str(int(k))] = int(v)
+                    except (TypeError, ValueError):
+                        continue
+                out["effects"] = clean
+            else:
+                out["effects"] = {}
             exo = _parse_exo(out.get("exo"))
             out["exo"] = {str(eid): dict(d) for eid, d in exo.items()}
             out["exoSummary"] = _exo_summary(exo)
@@ -1593,6 +1657,55 @@ class FmPanelBridge(QObject):
             if len(rows) >= MAX_RECENT:
                 break
         return rows
+
+    def _item_level(self, gid: int) -> int:
+        if self._items_db is None:
+            try:
+                with open(data_file("items.json"), encoding="utf-8") as f:
+                    self._items_db = json.load(f)
+            except (OSError, ValueError):
+                self._items_db = {}
+        rec = (self._items_db or {}).get(str(gid)) or {}
+        try:
+            return int(rec.get("level") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    @Slot(int, result=bool)
+    def copyShareImage(self, index: int) -> bool:
+        rows = self.recentItemsModel
+        if index < 0 or index >= len(rows):
+            print("[DOFUS-FM] carte FM: index invalide.", file=sys.stderr)
+            return False
+        rec = rows[index]
+        from fm_ui.share_card import render_share_card
+        try:
+            jet = rec.get("jet")
+            try:
+                jet_f = float(jet) if jet is not None and float(jet) >= 0 else None
+            except (TypeError, ValueError):
+                jet_f = None
+            img = render_share_card(
+                name=rec.get("name") or item_name(int(rec.get("gid") or 0)),
+                gid=int(rec.get("gid") or 0),
+                icon_path=rec.get("icon") or "",
+                effects=rec.get("effects") or {},
+                poses=int(rec.get("poses") or 0),
+                cost_total=int(rec.get("cost_total") or 0),
+                jet=jet_f,
+                exo_summary=rec.get("exoSummary") or "",
+                level=self._item_level(int(rec.get("gid") or 0)),
+            )
+        except Exception as e:
+            print("[DOFUS-FM] carte FM:", e, file=sys.stderr)
+            return False
+        if img is None or img.isNull():
+            print("[DOFUS-FM] carte FM: rendu vide.", file=sys.stderr)
+            return False
+        QGuiApplication.clipboard().setImage(img)
+        print("[DOFUS-FM] carte FM copiee:", rec.get("name") or rec.get("gid"),
+              file=sys.stderr)
+        return True
 
     def _build_runes_rows(self) -> list:
         if self._runes_rows is not None:

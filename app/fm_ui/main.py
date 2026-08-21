@@ -26,8 +26,9 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
-from fm_ui.constants import resource_path, COLORS as C
+from fm_ui.constants import resource_path, COLORS as C, APP_VERSION
 from fm_ui.bridge import FmPanelBridge
+from fm_ui import applog
 from paths import PROJECT_DIR, CAPTURES_DIR
 
 UDP_PORT = 43213
@@ -122,13 +123,11 @@ def handle_multiple_instances():
 
 
 def main() -> int:
-    if getattr(sys, "frozen", False):
-        try:
-            os.makedirs(PROJECT_DIR, exist_ok=True)
-            log_path = os.path.join(PROJECT_DIR, "dofus_fm.log")
-            sys.stderr = open(log_path, "a", encoding="utf-8")
-        except OSError:
-            pass
+    try:
+        os.makedirs(PROJECT_DIR, exist_ok=True)
+    except OSError:
+        pass
+    applog.install(os.path.join(PROJECT_DIR, "dofus_fm.log"))
 
     argv = sys.argv[1:]
     if "--no-admin" not in argv and not is_admin():
@@ -143,6 +142,8 @@ def main() -> int:
 
     qapp = QApplication(sys.argv)
     qapp.setQuitOnLastWindowClosed(True)
+    applog.install_qt_handler()
+    print(f"[DOFUS-FM] Dofus FM {APP_VERSION} demarre.", file=sys.stderr)
     icon_path = resource_path(os.path.join("icons", "logo.ico"))
     if os.path.exists(icon_path):
         qapp.setWindowIcon(QIcon(icon_path))
