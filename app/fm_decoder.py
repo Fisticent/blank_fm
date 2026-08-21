@@ -225,14 +225,35 @@ def _fields(buf: bytes) -> dict:
     return {f: v for f, w, v in parse_message(buf)}
 
 
+_OMITTED_ZERO_LOGGED: set[int] = set()
+
+
 def _effect_list(buf: bytes) -> list[tuple[int, int]]:
-    """Liste d'effets -> [(effectId, valeur)] (f2 repete = ObjectEffectInteger)."""
+    """Liste d'effets -> [(effectId, valeur)] (f2 repete = ObjectEffectInteger).
+
+    Protobuf 3 n'encode pas les scalaires a 0 : un effet a 0 (PO, invo, stat
+    tombee a 0) arrive avec f11 (effectId) mais sans f4. Ce n'est pas une
+    ligne speciale, c'est zero.
+    """
     out = []
     for f, w, v in parse_message(buf):
         if f == 2 and w == 2 and isinstance(v, bytes):
             e = _fields(v)
-            out.append((e.get(11), e.get(4)))
-    return [(eid, val) for eid, val in out if eid is not None]
+            eid = e.get(11)
+            if eid is None:
+                continue
+            val = e.get(4)
+            if val is None:
+                val = 0
+                if eid not in _OMITTED_ZERO_LOGGED:
+                    _OMITTED_ZERO_LOGGED.add(eid)
+                    print(f"[DOFUS-FM] effet {eid} {effect_name(eid)}: "
+                          f"valeur absente dans le paquet, lue 0 (proto3)",
+                          file=sys.stderr)
+            elif not isinstance(val, int):
+                continue
+            out.append((int(eid), int(val)))
+    return out
 
 
 # ------------------------------------------------------------- parseurs

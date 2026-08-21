@@ -1,10 +1,8 @@
-Outil Forgemagie Dofus 3 (Windows), v1.0.7
+Outil Forgemagie Dofus 3 (Windows), v1.0.8
 
 - Dezippe, lance DofusFM.exe, accepte l'admin
-- Overlay : elargi = colonnes, compact = lignes
-- Carte / recap : noms de caracteristiques, malus plus en double
-- Alerte stock runes : seuil 10 a 100 (slider)
-- Prix moyens : date de derniere maj, recap runes trie par kamas
-- Si tu as v1.0.6 : bandeau vert au lancement, un clic suffit.
+- Corrige le crash historique quand une stat est a 0 (PO, invo, etc.)
+- Protobuf n'envoie pas les 0 : on les lit comme zero, plus de spam
+- Si tu as v1.0.7 : bandeau vert au lancement, un clic suffit.
 
 Npcap n'est pas dans le zip (licence). Capture passive, rien n'est envoye au serveur.

@@ -7,7 +7,7 @@ import os
 import sys
 
 APP_NAME = "Dofus FM"
-APP_VERSION = "1.0.7"
+APP_VERSION = "1.0.8"
 
 
 def get_app_dir():

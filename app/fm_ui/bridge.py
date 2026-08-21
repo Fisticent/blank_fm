@@ -539,7 +539,7 @@ class FmPanelBridge(QObject):
                 self._reanchor_item(0.0)
         eff = s.get("effects")
         if isinstance(eff, dict) and eff:
-            p._effects = {int(k): int(v) for k, v in eff.items()}
+            p._effects = {int(k): int(v) for k, v in self._clean_effects(eff).items()}
         elif events:
             last = events[-1]
             if len(last) >= 5 and isinstance(last[4], dict):
@@ -1520,6 +1520,13 @@ class FmPanelBridge(QObject):
         p = self._p
         if p is None or not getattr(p, "item_gid", 0) or not getattr(p, "poses", 0):
             return None
+        try:
+            return self._item_snapshot_body(p)
+        except Exception as e:
+            print("[DOFUS-FM] snapshot:", e, file=sys.stderr)
+            return None
+
+    def _item_snapshot_body(self, p) -> dict:
         jet = -1.0
         try:
             v = p._jet_pct()
@@ -1549,20 +1556,17 @@ class FmPanelBridge(QObject):
             "exo_first_item_sec": self._exo_first_item_sec,
             "exo_mark_item_sec": self._exo_mark_item_sec,
             "exoSummary": _exo_summary(self._exo),
-            "rune_by_stat": {str(k): int(v)
-                             for k, v in (getattr(p, "rune_by_stat", {}) or {}).items()},
-            "cost_by_stat": {str(k): int(v)
-                             for k, v in (getattr(p, "cost_by_stat", {}) or {}).items()},
+            "rune_by_stat": self._clean_effects(getattr(p, "rune_by_stat", None)),
+            "cost_by_stat": self._clean_effects(getattr(p, "cost_by_stat", None)),
             "puit_delta_total": float(getattr(p, "puit_delta_total", 0) or 0),
             "reliquat_cumul": float(getattr(p, "reliquat_cumul", 0) or 0),
-            "seen_eids": [int(x) for x in sorted(self._seen_eids)],
+            "seen_eids": self._clean_int_list(self._seen_eids),
             "event_no": int(getattr(p, "event_no", 0) or 0),
             "elapsed_item": self._item_seconds(),
             "current": False,
             "ts": datetime.now().isoformat(timespec="seconds"),
             "history": self._panel_history_rows(p),
-            "effects": {str(k): int(v)
-                        for k, v in (getattr(p, "_effects", None) or {}).items()},
+            "effects": self._clean_effects(getattr(p, "_effects", None)),
         }
 
     def _history_keep(self) -> int:
@@ -1578,10 +1582,23 @@ class FmPanelBridge(QObject):
             return out
         for k, v in raw.items():
             try:
+                if v is None or k is None:
+                    continue
                 out[str(int(k))] = int(v)
             except (TypeError, ValueError):
                 continue
         return out
+
+    def _clean_int_list(self, raw) -> list:
+        out = []
+        for x in raw or []:
+            try:
+                if x is None:
+                    continue
+                out.append(int(x))
+            except (TypeError, ValueError):
+                continue
+        return sorted(set(out))
 
     def _merge_share_fields(self, snap: dict, previous: Optional[dict]) -> dict:
         """Garde le dernier jet/stats connus si le snapshot courant est vide."""
