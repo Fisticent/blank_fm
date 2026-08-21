@@ -19,7 +19,7 @@ from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer, QUrl, QCoreA
 from PySide6.QtGui import QGuiApplication, QDesktopServices
 
 from fm_panel import FmPanel, PORT_GAME, PRICES_HISTORY_PATH
-from fm_decoder import RUNES, effect_name, item_name, signed_value
+from fm_decoder import RUNES, effect_name, fold_malus_onto_template, item_name, signed_stat, signed_value
 from fm_ui.constants import STAT_COLORS, STAT_COLOR_FALLBACK, APP_VERSION
 from fm_ui import applog
 from fm_ui.fm_sounds import (
@@ -35,6 +35,19 @@ IDLE_PAUSE_SEC = 10.0
 PRICE_HORIZONS = ("session", "7d", "30d")
 HISTORY_LIMITS = (10, 25, 50, 100)
 DEFAULT_HISTORY_LIMIT = 10
+RUNE_LOW_QTY_MIN = 10
+RUNE_LOW_QTY_MAX = 100
+RUNE_LOW_QTY_STEP = 10
+DEFAULT_RUNE_LOW_QTY = 30
+
+
+def _clamp_rune_low_qty(n) -> int:
+    try:
+        v = int(n)
+    except (TypeError, ValueError):
+        return DEFAULT_RUNE_LOW_QTY
+    v = int(round(v / RUNE_LOW_QTY_STEP) * RUNE_LOW_QTY_STEP)
+    return max(RUNE_LOW_QTY_MIN, min(RUNE_LOW_QTY_MAX, v))
 
 EXO_TRACK = (
     (111, "PA"),
@@ -99,6 +112,19 @@ def _exo_summary(exo: dict) -> str:
             bit += f" ({landed})"
         parts.append(bit)
     return " · ".join(parts)
+
+
+def _exo_attempts_count(exo) -> int:
+    total = 0
+    if not isinstance(exo, dict):
+        return 0
+    parsed = _parse_exo(exo)
+    for rec in parsed.values():
+        try:
+            total += int(rec.get("attempts") or 0)
+        except (TypeError, ValueError, AttributeError):
+            continue
+    return total
 
 
 def _fmt_duration(seconds: float) -> str:
@@ -1399,13 +1425,15 @@ class FmPanelBridge(QObject):
             return []
         effects = dict(getattr(p, "_effects", None) or {})
         tpl = getattr(p, "_template", None) or {}
-        eids = set(effects) | set(tpl) | set(self._seen_eids)
+        effects, consumed = fold_malus_onto_template(effects, tpl)
+        eids = set(effects) | set(tpl) | (set(self._seen_eids) - consumed)
         if not eids:
             return []
         rows = []
         for eid in eids:
+            hi = tpl[eid][1] if eid in tpl else None
             if eid in effects:
-                sv = signed_value(eid, effects[eid])
+                sv = signed_stat(eid, effects[eid], hi)
             else:
                 sv = 0
             neg = sv < 0
@@ -1739,6 +1767,7 @@ class FmPanelBridge(QObject):
                 cost_total=int(rec.get("cost_total") or 0),
                 jet=jet_f,
                 exo_summary=rec.get("exoSummary") or "",
+                exo_attempts=_exo_attempts_count(rec.get("exo")),
                 level=self._item_level(int(rec.get("gid") or 0)),
             )
         except Exception as e:
@@ -1806,10 +1835,13 @@ class FmPanelBridge(QObject):
                 "name": effect_name(eid),
                 "count": count,
                 "cost": _fmt_kamas(cost_n) if cost_n else "",
+                "cost_n": cost_n,
                 "color": STAT_COLORS.get(eid, STAT_COLOR_FALLBACK),
                 "icon": self._stat_icon_url(eid),
             })
-        runes.sort(key=lambda r: (-r["count"], r["name"].lower()))
+        runes.sort(key=lambda r: (-r["cost_n"], -r["count"], r["name"].lower()))
+        for r in runes:
+            r.pop("cost_n", None)
         try:
             jet = float(rec.get("jet") if rec.get("jet") is not None else -1)
         except (TypeError, ValueError):
@@ -1941,6 +1973,15 @@ class FmPanelBridge(QObject):
         return len(self.runesCatalogModel)
 
     @Property(str, notify=runesChanged)
+    def pricesUpdatedLabel(self) -> str:
+        path = data_file("prices.json")
+        try:
+            ts = os.path.getmtime(path)
+        except OSError:
+            return ""
+        return datetime.fromtimestamp(ts).strftime("%d/%m/%Y %H:%M")
+
+    @Property(str, notify=runesChanged)
     def priceHorizon(self) -> str:
         hz = self._settings.get("price_horizon") or "session"
         return hz if hz in PRICE_HORIZONS else "session"
@@ -1991,6 +2032,7 @@ class FmPanelBridge(QObject):
             "sound_exo_fail": True,
             "overlay_enabled": False,
             "overlay_low_runes": True,
+            "rune_low_qty": DEFAULT_RUNE_LOW_QTY,
             "overlay_x": -1,
             "overlay_y": -1,
             "overlay_w": -1,
@@ -2016,6 +2058,11 @@ class FmPanelBridge(QObject):
                     cfg["overlay_enabled"] = bool(data["overlay_enabled"])
                 if "overlay_low_runes" in data:
                     cfg["overlay_low_runes"] = bool(data["overlay_low_runes"])
+                try:
+                    cfg["rune_low_qty"] = _clamp_rune_low_qty(
+                        data.get("rune_low_qty", DEFAULT_RUNE_LOW_QTY))
+                except (TypeError, ValueError):
+                    pass
                 hz = data.get("price_horizon")
                 if hz in PRICE_HORIZONS:
                     cfg["price_horizon"] = hz
@@ -2149,6 +2196,24 @@ class FmPanelBridge(QObject):
     def setOverlayLowRunesEnabled(self, enabled: bool):
         self.set_overlay_low_runes_enabled(enabled)
 
+    @Property(int, notify=settingsChanged)
+    def runeLowQty(self) -> int:
+        return _clamp_rune_low_qty(self._settings.get("rune_low_qty", DEFAULT_RUNE_LOW_QTY))
+
+    @Slot(int)
+    def set_rune_low_qty(self, n: int):
+        val = _clamp_rune_low_qty(n)
+        if self.runeLowQty == val:
+            return
+        self._settings["rune_low_qty"] = val
+        self._save_settings()
+        self.settingsChanged.emit()
+        self.updated.emit()
+
+    @Slot(int)
+    def setRuneLowQty(self, n: int):
+        self.set_rune_low_qty(n)
+
     @Property("QVariantList", notify=updated)
     def lowRuneStocksModel(self) -> list:
         if not self.overlayLowRunesEnabled:
@@ -2157,7 +2222,7 @@ class FmPanelBridge(QObject):
         if p is None:
             return []
         try:
-            rows = p.low_rune_stocks()
+            rows = p.low_rune_stocks(limit=self.runeLowQty)
         except Exception:
             return []
         catalog = {int(r.get("gid") or 0): r for r in self._build_runes_rows()}

@@ -750,7 +750,7 @@ ApplicationWindow {
                             ThemedButton {
                                 property string imgLabel: "Image"
                                 label: imgLabel
-                                tooltip: "Copier une carte du FM (jet, tentatives, prix)"
+                                tooltip: "Copier une carte du FM (jet, runes, exo, prix)"
                                 anchors.verticalCenter: parent.verticalCenter
                                 Timer {
                                     id: imgCopied
@@ -1077,6 +1077,9 @@ ApplicationWindow {
             SectionCard {
                 anchors.fill: parent
                 title: "PRIX MOYEN DES RUNES  ·  " + app.runesCatalogCount + " rune(s)"
+                       + (app.pricesUpdatedLabel.length
+                          ? "  ·  maj " + app.pricesUpdatedLabel
+                          : "")
 
                 Column {
                     anchors.fill: parent
@@ -1371,10 +1374,61 @@ ApplicationWindow {
                         }
                         SettingsRow {
                             label: "Alerte stock runes"
-                            hint: "Si une rune passe sous 30"
+                            hint: "Si une rune passe sous " + app.runeLowQty
                             ThemedSwitch {
                                 checked: app.overlayLowRunesEnabled
                                 onClicked: app.setOverlayLowRunesEnabled(!app.overlayLowRunesEnabled)
+                            }
+                        }
+                        Row {
+                            width: parent.width
+                            spacing: 10
+                            height: 28
+                            Slider {
+                                id: runeLowSlider
+                                width: parent.width - 40
+                                from: 10
+                                to: 100
+                                stepSize: 10
+                                snapMode: Slider.SnapAlways
+                                value: app.runeLowQty
+                                onMoved: app.setRuneLowQty(Math.round(value))
+                                background: Rectangle {
+                                    x: runeLowSlider.leftPadding
+                                    y: runeLowSlider.topPadding + runeLowSlider.availableHeight / 2 - height / 2
+                                    implicitWidth: 160
+                                    implicitHeight: 4
+                                    width: runeLowSlider.availableWidth
+                                    height: implicitHeight
+                                    radius: 2
+                                    color: Colors.secondary
+                                    Rectangle {
+                                        width: runeLowSlider.visualPosition * parent.width
+                                        height: parent.height
+                                        color: Colors.primary
+                                        radius: 2
+                                    }
+                                }
+                                handle: Rectangle {
+                                    x: runeLowSlider.leftPadding + runeLowSlider.visualPosition * (runeLowSlider.availableWidth - width)
+                                    y: runeLowSlider.topPadding + runeLowSlider.availableHeight / 2 - height / 2
+                                    implicitWidth: 16
+                                    implicitHeight: 16
+                                    radius: 8
+                                    color: Colors.text
+                                    border.width: 1
+                                    border.color: Colors.primary_bright
+                                }
+                            }
+                            Text {
+                                width: 30
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "" + app.runeLowQty
+                                color: Colors.text
+                                font.family: Colors.font_family
+                                font.pixelSize: Colors.font_size_ui
+                                font.bold: true
+                                horizontalAlignment: Text.AlignRight
                             }
                         }
                         SettingsRow {

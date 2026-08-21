@@ -1,9 +1,10 @@
-Outil Forgemagie Dofus 3 (Windows), v1.0.6
+Outil Forgemagie Dofus 3 (Windows), v1.0.7
 
 - Dezippe, lance DofusFM.exe, accepte l'admin
-- Historique : clic sur un objet ouvre un recap (jet, runes, cout)
-- La carte image garde le dernier jet entre les sessions
-- Parametres : choisir 10 / 25 / 50 / 100 objets en historique
-- Si tu as v1.0.5 : bandeau vert au lancement, un clic suffit.
+- Overlay : elargi = colonnes, compact = lignes
+- Carte / recap : noms de caracteristiques, malus plus en double
+- Alerte stock runes : seuil 10 a 100 (slider)
+- Prix moyens : date de derniere maj, recap runes trie par kamas
+- Si tu as v1.0.6 : bandeau vert au lancement, un clic suffit.
 
 Npcap n'est pas dans le zip (licence). Capture passive, rien n'est envoye au serveur.

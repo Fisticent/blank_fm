@@ -29,6 +29,7 @@ import argparse
 import json
 import os
 import sys
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -38,17 +39,23 @@ from paths import data_file
 
 # ------------------------------------------------------------- dictionnaires
 
-def _load_runes_table() -> tuple[dict[int, str], dict[int, int]]:
-    """runes.json (genere par fetch_runes.py) -> ({gid: nom}, {gid: effectId})."""
+def _load_runes_table() -> tuple[dict[int, str], dict[int, int], dict[int, str]]:
+    """runes.json -> ({gid: nom}, {gid: effectId}, {effectId: caracteristique})."""
     path = data_file("runes.json")
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
         names = {int(gid): r["name"] for gid, r in data.items()}
         effects = {int(gid): r.get("effectId") or 0 for gid, r in data.items()}
-        return names, effects
+        by_eid: dict[int, str] = {}
+        for r in data.values():
+            eid = r.get("effectId")
+            en = r.get("effect_name")
+            if eid and en:
+                by_eid.setdefault(int(eid), str(en))
+        return names, effects, by_eid
     except (OSError, ValueError, KeyError):
-        return {}, {}
+        return {}, {}, {}
 
 
 _STAT_DISPLAY = {
@@ -65,6 +72,8 @@ def _display_stat(stat: str) -> str:
     s = stat.replace("é", "e").replace("è", "e").replace("ê", "e")
     if s.startswith("Re Per "):
         return "Res. % " + s[7:]
+    if s in ("Re Pa", "Re Pme"):
+        return {"Re Pa": "Esquive PA", "Re Pme": "Esquive PM"}[s]
     if s.startswith("Re "):
         return "Res. " + s[3:]
     if s.startswith("Do Per "):
@@ -89,7 +98,7 @@ def _effect_names_from_runes(runes: dict[int, str], runes_eff: dict[int, int]) -
     return out
 
 
-_RUNES, _RUNES_EFFECT = _load_runes_table()
+_RUNES, _RUNES_EFFECT, _RUNES_STAT = _load_runes_table()
 
 
 # GIDs identifies via api.dofusdb.fr (session du 2026-08-20) ; completes
@@ -142,17 +151,20 @@ def known_item_gid(gid: int) -> bool:
     _ensure_items_enriched()
     return gid in ITEMS and gid not in RUNES
 
-# effectId -> nom (numerotation dofusdb, pas les actionIds classiques) ;
-# d'abord les stats derivees des runes (runes.json), puis les noms connus
-# en priorite pour les stats deja identifiees en session.
-EFFECTS: dict[int, str] = _effect_names_from_runes(_RUNES, _RUNES_EFFECT)
-EFFECTS.update({
+# effectId -> nom de caracteristique (pas le nom de rune).
+# Priorite : runes.json effect_name, puis derivation du nom de rune, puis alias.
+EFFECTS: dict[int, str] = dict(_RUNES_STAT)
+for _eid, _stat in _effect_names_from_runes(_RUNES, _RUNES_EFFECT).items():
+    if _eid:
+        EFFECTS.setdefault(_eid, _stat)
+for _eid, _stat in {
     111: "PA", 115: "Critique", 123: "Chance", 124: "Sagesse", 125: "Vitalite",
-    138: "Puissance", 160: "Re Pa", 171: "Critique (malus)",
-    210: "Re Per Terre", 212: "Re Per Air",
-    242: "Res. Air", 412: "Ret PM", 416: "Res. Poussee", 418: "Do Cri",
+    138: "Puissance", 160: "Esquive PA", 171: "Critique (malus)",
+    210: "Res. % Terre", 212: "Res. % Air",
+    242: "Res. Air", 412: "Ret. PM", 416: "Res. Poussee", 418: "Dommage Critiques",
     421: "Res. Critiques (malus)", 426: "Do Eau", 753: "Tacle",
-})
+}.items():
+    EFFECTS.setdefault(_eid, _stat)
 
 # Effets dont la valeur du paquet est une MAGNITUDE positive alors que
 # l'effet est un malus (le signe vient de la definition, cf. dofusdb
@@ -389,6 +401,83 @@ def signed_value(eid: int, v: int) -> int:
     """Valeur signee (les malus sont envoyes en magnitude positive)."""
     _ensure_effects_loaded()
     return -v if eid in MALUS_EFFECTS else v
+
+
+def _norm_stat_key(name: str) -> str:
+    s = (name or "").strip().lower()
+    if s.endswith(" (malus)"):
+        s = s[:-8]
+    s = unicodedata.normalize("NFD", s)
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn").strip()
+    if s.startswith("res. "):
+        s = "resistance " + s[5:]
+    return s
+
+
+_MALUS_TO_BONUS: dict[int, int] | None = None
+
+
+def malus_to_bonus() -> dict[int, int]:
+    """effectId malus -> effectId bonus (meme caracteristique)."""
+    global _MALUS_TO_BONUS
+    _ensure_effects_loaded()
+    if _MALUS_TO_BONUS is not None:
+        return _MALUS_TO_BONUS
+    bonus_by_name: dict[str, int] = {}
+    for eid, name in EFFECTS.items():
+        if eid in MALUS_EFFECTS:
+            continue
+        bonus_by_name.setdefault(_norm_stat_key(name), eid)
+    mapping: dict[int, int] = {}
+    for eid in MALUS_EFFECTS:
+        key = _norm_stat_key(EFFECTS.get(eid, ""))
+        bid = bonus_by_name.get(key)
+        if bid is not None:
+            mapping[eid] = bid
+    _MALUS_TO_BONUS = mapping
+    return mapping
+
+
+def fold_malus_onto_template(
+    effects: dict[int, int],
+    template: dict[int, tuple[int, int]],
+) -> tuple[dict[int, int], set[int]]:
+    """Ramene un id malus du paquet sur l'id bonus du template (jet negatif).
+
+    Encyclopedie : 414 Do Pousse [-30, -21]. Paquet : 415 magnitude 21.
+    Sans ce repli, l'UI affiche les deux lignes.
+    """
+    if not effects or not template:
+        return dict(effects or {}), set()
+    mapping = malus_to_bonus()
+    out = dict(effects)
+    consumed: set[int] = set()
+    for meid, val in list(effects.items()):
+        beid = mapping.get(meid)
+        if beid is None:
+            cand = meid - 1
+            if cand in template:
+                _lo, hi = template[cand]
+                if hi < 0:
+                    beid = cand
+        if beid is None or beid not in template or beid == meid:
+            continue
+        _lo, hi = template[beid]
+        if hi >= 0:
+            continue
+        if beid not in out:
+            out[beid] = val
+        out.pop(meid, None)
+        consumed.add(meid)
+    return out, consumed
+
+
+def signed_stat(eid: int, v: int, hi: Optional[int] = None) -> int:
+    """Comme signed_value, plus le jet negatif natif (template bonus, paquet malus)."""
+    sv = signed_value(eid, v)
+    if eid not in MALUS_EFFECTS and hi is not None and hi < 0 and sv > 0:
+        return -abs(sv)
+    return sv
 
 
 def render(events: list[FmEvent], out=sys.stdout, prices: Optional[dict[int, int]] = None,

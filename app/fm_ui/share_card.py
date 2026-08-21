@@ -14,7 +14,7 @@ from PySide6.QtGui import (
     QColor, QFont, QFontMetrics, QImage, QPainter, QPainterPath, QPen,
 )
 
-from fm_decoder import effect_name, signed_value
+from fm_decoder import effect_name, fold_malus_onto_template, signed_stat
 import fm_decoder
 from fm_ui.constants import (
     APP_NAME, COLORS, JET_GREEN, JET_YELLOW, STAT_COLOR_FALLBACK, STAT_COLORS,
@@ -103,18 +103,19 @@ def lines_from_item(gid: int, effects: dict) -> list[dict]:
         tpl = get_template(int(gid)) if gid else {}
     except Exception:
         tpl = {}
+    raw, _consumed = fold_malus_onto_template(raw, tpl)
     eids = list(tpl.keys()) + [e for e in raw if e not in tpl]
     if not raw:
         return []
     rows = []
     for eid in eids:
-        if eid in raw:
-            sv = signed_value(eid, raw[eid])
-        else:
-            sv = 0
         lo = hi = None
         if eid in tpl:
             lo, hi = tpl[eid]
+        if eid in raw:
+            sv = signed_stat(eid, raw[eid], hi)
+        else:
+            sv = 0
         color = STAT_COLORS.get(eid, STAT_COLOR_FALLBACK)
         malus = eid in fm_decoder.MALUS_EFFECTS or (hi is not None and hi < 0)
         rows.append({
@@ -184,12 +185,12 @@ def render_share_card(
     cost_total: int = 0,
     jet: Optional[float] = None,
     exo_summary: str = "",
+    exo_attempts: int = 0,
     level: Optional[int] = None,
 ) -> QImage:
     rows = lines_from_item(gid, effects or {})
     if jet is None or jet < 0:
         jet = jet_pct_of(gid, effects or {})
-    avg = int(round(cost_total / poses)) if poses and cost_total else 0
 
     n = max(1, len(rows))
     h = PAD + HEADER_H + n * ROW_H + GAP + FOOTER_H + PAD
@@ -359,9 +360,9 @@ def render_share_card(
     fy += 10
 
     cells = [
-        (str(int(poses)), "tentatives", False),
+        (str(int(poses)), "runes", False),
+        (str(int(exo_attempts)), "tentatives", False),
         (_fmt_kamas(cost_total) if cost_total else "-", "prix total", True),
-        (_fmt_kamas(avg) if avg else "-", "moy. / tenta", True),
         (f"{jet:.1f}%" if jet is not None else "-", "jet", False),
     ]
     cell_w = (WIDTH - PAD - x0) / 4
@@ -417,7 +418,8 @@ def preview_strigide() -> QImage:
         effects=effects,
         poses=186,
         cost_total=842150,
-        exo_summary="",
+        exo_summary="PM 14",
+        exo_attempts=14,
         level=200,
     )
 

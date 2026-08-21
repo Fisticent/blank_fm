@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import QtQuick.Window
 
 Window {
@@ -7,7 +8,7 @@ Window {
     width: app.overlayW >= 180 ? app.overlayW : 268
     height: app.overlayH >= 120 ? app.overlayH : 210
     minimumWidth: 180
-    minimumHeight: 120
+    minimumHeight: overlay.landscape ? 86 : 120
     visible: app.overlayEnabled
     color: "#00000000"
     flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
@@ -16,10 +17,32 @@ Window {
     y: app.overlayY >= 0 ? app.overlayY : 96
 
     readonly property int grip: 14
+    property bool landscape: false
+
+    readonly property bool hasStock: app.overlayLowRunesEnabled && app.lowRuneStocksModel.length > 0
+    readonly property bool hasTenta: app.exoLastCostFormatted.length > 0
+                                     || app.exoAvgCostFormatted.length > 0
+                                     || app.exoAvgTimeFormatted.length > 0
+    readonly property bool hasExo: app.exoAttemptsActiveModel.length > 0
+    readonly property int landscapeCols: 3
+                                         + (overlay.hasStock ? 1 : 0)
+                                         + (overlay.hasTenta ? 1 : 0)
+                                         + (overlay.hasExo ? 1 : 0)
 
     function persist() {
         app.saveOverlayGeometry(overlay.x, overlay.y, overlay.width, overlay.height)
     }
+
+    function updateOrientation() {
+        if (overlay.width >= overlay.height * 1.5 && overlay.width >= 360)
+            overlay.landscape = true
+        else if (overlay.width < overlay.height * 1.25 || overlay.width < 320)
+            overlay.landscape = false
+    }
+
+    onWidthChanged: updateOrientation()
+    onHeightChanged: updateOrientation()
+    Component.onCompleted: updateOrientation()
 
     onVisibleChanged: {
         if (visible) {
@@ -53,15 +76,20 @@ Window {
             onReleased: overlay.persist()
         }
 
-        Column {
+        GridLayout {
             id: body
             anchors.fill: parent
             anchors.margins: 10
             anchors.bottomMargin: 18
-            spacing: 6
+            columns: overlay.landscape ? overlay.landscapeCols : 1
+            columnSpacing: overlay.landscape ? 12 : 6
+            rowSpacing: 6
 
             Row {
-                width: parent.width
+                Layout.fillWidth: true
+                Layout.fillHeight: overlay.landscape
+                Layout.preferredWidth: overlay.landscape ? 168 : -1
+                Layout.minimumWidth: overlay.landscape ? 132 : 80
                 spacing: 8
 
                 Rectangle {
@@ -71,6 +99,7 @@ Window {
                     color: Colors.bg
                     border.width: 1
                     border.color: Colors.separator
+                    anchors.verticalCenter: parent.verticalCenter
                     Image {
                         id: overlayItemIcon
                         anchors.fill: parent
@@ -212,49 +241,63 @@ Window {
                 }
             }
 
-            KamaAmount {
-                amount: app.costFormatted
-                iconSize: 16
-                pixelSize: 18
-                bold: true
-                width: parent.width
-            }
-            Text {
-                text: app.poses + " pose(s)"
-                color: Colors.text_muted
-                font.family: Colors.font_family
-                font.pixelSize: Colors.font_size_secondary
-            }
-            Text {
-                text: "Session  " + app.sessionDuration + (app.timerPaused ? "  pause" : "")
-                color: app.timerPaused ? Colors.text_muted : Colors.primary_bright
-                font.family: Colors.font_family
-                font.pixelSize: Colors.font_size_ui
-                font.bold: true
-            }
-            Text {
-                text: "Item  " + app.itemDuration
-                color: Colors.text_muted
-                font.family: Colors.font_family
-                font.pixelSize: Colors.font_size_secondary
+            Column {
+                Layout.fillWidth: true
+                Layout.fillHeight: overlay.landscape
+                Layout.preferredWidth: overlay.landscape ? 120 : -1
+                spacing: 2
+                KamaAmount {
+                    amount: app.costFormatted
+                    iconSize: overlay.landscape ? 14 : 16
+                    pixelSize: overlay.landscape ? Colors.font_size_heading : 18
+                    bold: true
+                    width: parent.width
+                }
+                Text {
+                    text: app.poses + " pose(s)"
+                    color: Colors.text_muted
+                    font.family: Colors.font_family
+                    font.pixelSize: Colors.font_size_secondary
+                }
             }
 
-            Text {
-                visible: app.overlayLowRunesEnabled && app.lowRuneStocksModel.length > 0
-                text: "STOCK < 30"
-                color: Colors.text_muted
-                font.family: Colors.font_family
-                font.pixelSize: 10
-                font.bold: true
-            }
             Column {
-                visible: app.overlayLowRunesEnabled && app.lowRuneStocksModel.length > 0
-                width: parent.width
+                Layout.fillWidth: true
+                Layout.fillHeight: overlay.landscape
+                Layout.preferredWidth: overlay.landscape ? 128 : -1
+                spacing: 2
+                Text {
+                    text: "Session  " + app.sessionDuration + (app.timerPaused ? "  pause" : "")
+                    color: app.timerPaused ? Colors.text_muted : Colors.primary_bright
+                    font.family: Colors.font_family
+                    font.pixelSize: Colors.font_size_ui
+                    font.bold: true
+                }
+                Text {
+                    text: "Item  " + app.itemDuration
+                    color: Colors.text_muted
+                    font.family: Colors.font_family
+                    font.pixelSize: Colors.font_size_secondary
+                }
+            }
+
+            Column {
+                visible: overlay.hasStock
+                Layout.fillWidth: true
+                Layout.fillHeight: overlay.landscape
+                Layout.preferredWidth: overlay.landscape ? 140 : -1
                 spacing: 4
+                Text {
+                    text: "STOCK < " + app.runeLowQty
+                    color: Colors.text_muted
+                    font.family: Colors.font_family
+                    font.pixelSize: 10
+                    font.bold: true
+                }
                 Repeater {
                     model: app.lowRuneStocksModel
                     Row {
-                        width: parent.width
+                        width: parent ? parent.width : 120
                         spacing: 6
                         Image {
                             width: 18
@@ -288,89 +331,104 @@ Window {
                 }
             }
 
-            Row {
-                visible: app.exoLastCostFormatted.length > 0 || app.exoAvgCostFormatted.length > 0 || app.exoAvgTimeFormatted.length > 0
-                width: parent.width
-                spacing: 8
-                Text {
-                    text: "Tenta"
-                    color: Colors.text_muted
-                    font.family: Colors.font_family
-                    font.pixelSize: Colors.font_size_secondary
-                    font.bold: true
-                    anchors.verticalCenter: parent.verticalCenter
+            Column {
+                visible: overlay.hasTenta
+                Layout.fillWidth: true
+                Layout.fillHeight: overlay.landscape
+                Layout.preferredWidth: overlay.landscape ? 150 : -1
+                spacing: 4
+                Row {
+                    visible: app.exoLastCostFormatted.length > 0
+                    spacing: 8
+                    Text {
+                        text: "Tenta"
+                        color: Colors.text_muted
+                        font.family: Colors.font_family
+                        font.pixelSize: Colors.font_size_secondary
+                        font.bold: true
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    KamaAmount {
+                        amount: app.exoLastCostFormatted
+                        iconSize: 12
+                        pixelSize: Colors.font_size_ui
+                        bold: true
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
                 }
-                KamaAmount {
-                    amount: app.exoLastCostFormatted
-                    iconSize: 12
-                    pixelSize: Colors.font_size_ui
-                    bold: true
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-                Text {
-                    visible: app.exoAvgCostFormatted.length > 0
-                    text: "moy"
-                    color: Colors.text_muted
-                    font.family: Colors.font_family
-                    font.pixelSize: Colors.font_size_secondary
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-                KamaAmount {
-                    amount: app.exoAvgCostFormatted
-                    suffix: "/t"
-                    iconSize: 12
-                    pixelSize: Colors.font_size_secondary
-                    textColor: Colors.text_muted
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-                Text {
-                    visible: app.exoAvgTimeFormatted.length > 0
-                    text: app.exoAvgTimeFormatted
-                    color: Colors.text
-                    font.family: Colors.font_family
-                    font.pixelSize: Colors.font_size_ui
-                    font.bold: true
-                    anchors.verticalCenter: parent.verticalCenter
+                Row {
+                    visible: app.exoAvgCostFormatted.length > 0 || app.exoAvgTimeFormatted.length > 0
+                    spacing: 8
+                    Text {
+                        visible: app.exoAvgCostFormatted.length > 0
+                        text: "moy"
+                        color: Colors.text_muted
+                        font.family: Colors.font_family
+                        font.pixelSize: Colors.font_size_secondary
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    KamaAmount {
+                        amount: app.exoAvgCostFormatted
+                        suffix: "/t"
+                        iconSize: 12
+                        pixelSize: Colors.font_size_secondary
+                        textColor: Colors.text_muted
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        visible: app.exoAvgTimeFormatted.length > 0
+                        text: app.exoAvgTimeFormatted
+                        color: Colors.text
+                        font.family: Colors.font_family
+                        font.pixelSize: Colors.font_size_ui
+                        font.bold: true
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
                 }
             }
 
-            Text {
-                visible: app.exoAttemptsActiveModel.length > 0
-                text: "TENTATIVES D'EXO"
-                color: Colors.text_muted
-                font.family: Colors.font_family
-                font.pixelSize: 10
-                font.bold: true
-            }
-            Flow {
-                visible: app.exoAttemptsActiveModel.length > 0
-                width: parent.width
-                spacing: 8
-                Repeater {
-                    model: app.exoAttemptsActiveModel
-                    Row {
-                        spacing: 4
-                        Text {
-                            text: modelData.label
-                            color: Colors.text_muted
-                            font.family: Colors.font_family
-                            font.pixelSize: Colors.font_size_secondary
-                            font.bold: true
-                        }
-                        Text {
-                            text: "" + modelData.attempts
-                            color: modelData.color
-                            font.family: Colors.font_family
-                            font.pixelSize: Colors.font_size_ui
-                            font.bold: true
-                        }
-                        Text {
-                            visible: modelData.landed > 0
-                            text: "(" + modelData.landed + ")"
-                            color: Colors.success
-                            font.family: Colors.font_family
-                            font.pixelSize: Colors.font_size_secondary
-                            font.bold: true
+            Column {
+                visible: overlay.hasExo
+                Layout.fillWidth: true
+                Layout.fillHeight: overlay.landscape
+                Layout.preferredWidth: overlay.landscape ? 140 : -1
+                spacing: 4
+                Text {
+                    text: "TENTATIVES D'EXO"
+                    color: Colors.text_muted
+                    font.family: Colors.font_family
+                    font.pixelSize: 10
+                    font.bold: true
+                }
+                Flow {
+                    width: parent.width
+                    spacing: 8
+                    Repeater {
+                        model: app.exoAttemptsActiveModel
+                        Row {
+                            spacing: 4
+                            Text {
+                                text: modelData.label
+                                color: Colors.text_muted
+                                font.family: Colors.font_family
+                                font.pixelSize: Colors.font_size_secondary
+                                font.bold: true
+                            }
+                            Text {
+                                text: "" + modelData.attempts
+                                color: modelData.color
+                                font.family: Colors.font_family
+                                font.pixelSize: Colors.font_size_ui
+                                font.bold: true
+                            }
+                            Text {
+                                visible: modelData.landed > 0
+                                text: "(" + modelData.landed + ")"
+                                color: Colors.success
+                                font.family: Colors.font_family
+                                font.pixelSize: Colors.font_size_secondary
+                                font.bold: true
+                            }
                         }
                     }
                 }
