@@ -7,8 +7,8 @@ Window {
     title: "Dofus FM overlay"
     width: app.overlayW >= 180 ? app.overlayW : 268
     height: app.overlayH >= 120 ? app.overlayH : 210
-    minimumWidth: 180
-    minimumHeight: overlay.landscape ? 86 : 120
+    minimumWidth: collapsed ? pillW : 180
+    minimumHeight: collapsed ? pillH : (landscape ? 86 : 120)
     visible: app.overlayEnabled
     color: "#00000000"
     flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
@@ -18,6 +18,26 @@ Window {
 
     readonly property int grip: 14
     property bool landscape: false
+
+    // Pause FM -> overlay retracte en pastille jusqu'a la reprise. La taille
+    // d'avant retractation est memorisee pour la restaurer telle quelle.
+    readonly property bool collapsed: app.timerPaused && app.overlayCollapseOnPauseEnabled
+    readonly property int pillW: 138
+    readonly property int pillH: 28
+    property real savedW: app.overlayW >= 180 ? app.overlayW : 268
+    property real savedH: app.overlayH >= 120 ? app.overlayH : 210
+
+    onCollapsedChanged: {
+        if (collapsed) {
+            savedW = width
+            savedH = height
+            width = pillW
+            height = pillH
+        } else {
+            width = savedW
+            height = savedH
+        }
+    }
 
     readonly property bool hasStock: app.overlayLowRunesEnabled && app.lowRuneStocksModel.length > 0
     readonly property bool hasTenta: app.exoLastCostFormatted.length > 0
@@ -30,10 +50,16 @@ Window {
                                          + (overlay.hasExo ? 1 : 0)
 
     function persist() {
-        app.saveOverlayGeometry(overlay.x, overlay.y, overlay.width, overlay.height)
+        // Meme retracte, on persiste la taille "logique" (avant pastille) :
+        // sinon une pause+drag ecraserait la taille normale de l'overlay.
+        var w = overlay.collapsed ? overlay.savedW : overlay.width
+        var h = overlay.collapsed ? overlay.savedH : overlay.height
+        app.saveOverlayGeometry(overlay.x, overlay.y, w, h)
     }
 
     function updateOrientation() {
+        if (overlay.collapsed)
+            return
         if (overlay.width >= overlay.height * 1.5 && overlay.width >= 360)
             overlay.landscape = true
         else if (overlay.width < overlay.height * 1.25 || overlay.width < 320)
@@ -42,7 +68,13 @@ Window {
 
     onWidthChanged: updateOrientation()
     onHeightChanged: updateOrientation()
-    Component.onCompleted: updateOrientation()
+    Component.onCompleted: {
+        updateOrientation()
+        if (overlay.collapsed) {
+            overlay.width = pillW
+            overlay.height = pillH
+        }
+    }
 
     onVisibleChanged: {
         if (visible) {
@@ -76,8 +108,59 @@ Window {
             onReleased: overlay.persist()
         }
 
+        Item {
+            id: pausePill
+            visible: overlay.collapsed
+            anchors.fill: parent
+            anchors.leftMargin: 10
+            anchors.rightMargin: 8
+
+            Row {
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 6
+                Text {
+                    text: "⏸"
+                    color: Colors.warning
+                    font.pixelSize: 13
+                    font.bold: true
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                    text: "Pause"
+                    color: Colors.text_muted
+                    font.family: Colors.font_family
+                    font.pixelSize: Colors.font_size_secondary
+                    font.bold: true
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            Text {
+                text: "✕"
+                color: pillCloseMouse.containsMouse ? Colors.text : Colors.text_muted
+                font.family: Colors.font_family
+                font.pixelSize: Colors.font_size_ui
+                width: 16
+                height: 22
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                MouseArea {
+                    id: pillCloseMouse
+                    anchors.fill: parent
+                    anchors.margins: -4
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: app.setOverlayEnabled(false)
+                }
+            }
+        }
+
         GridLayout {
             id: body
+            visible: !overlay.collapsed
             anchors.fill: parent
             anchors.margins: 10
             anchors.bottomMargin: 18
@@ -85,11 +168,16 @@ Window {
             columnSpacing: overlay.landscape ? 12 : 6
             rowSpacing: 6
 
+            // Icone + nom + jet + reset/croix, sur la meme ligne que le
+            // reste des donnees (pas de bandeau dedie au-dessus : largeur
+            // plafonnee a sa taille naturelle pour ne jamais s'etirer et
+            // pousser reset/croix n'importe ou).
             Row {
                 Layout.fillWidth: true
-                Layout.fillHeight: overlay.landscape
-                Layout.preferredWidth: overlay.landscape ? 168 : -1
-                Layout.minimumWidth: overlay.landscape ? 132 : 80
+                Layout.maximumWidth: overlay.landscape ? 176 : 100000
+                Layout.alignment: Qt.AlignTop
+                Layout.preferredWidth: overlay.landscape ? 176 : -1
+                Layout.minimumWidth: overlay.landscape ? 140 : 80
                 spacing: 8
 
                 Rectangle {
@@ -99,7 +187,7 @@ Window {
                     color: Colors.bg
                     border.width: 1
                     border.color: Colors.separator
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.top: parent.top
                     Image {
                         id: overlayItemIcon
                         anchors.fill: parent
@@ -121,7 +209,8 @@ Window {
                 Column {
                     width: Math.max(40, parent.width - 32 - 8 - rightBtns.width - 8)
                     spacing: 1
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.top: parent.top
+                    anchors.topMargin: 2
                     Text {
                         text: app.itemGid > 0 ? app.itemName : "Dofus FM"
                         color: Colors.text
@@ -243,7 +332,11 @@ Window {
 
             Column {
                 Layout.fillWidth: true
-                Layout.fillHeight: overlay.landscape
+                // Largeur plafonnee a sa taille naturelle en mode paysage :
+                // le surplus de place ne s'etire plus dans chaque colonne,
+                // il finit en une seule marge vide a droite de la grille.
+                Layout.maximumWidth: overlay.landscape ? 120 : 100000
+                Layout.alignment: Qt.AlignTop
                 Layout.preferredWidth: overlay.landscape ? 120 : -1
                 spacing: 2
                 KamaAmount {
@@ -263,7 +356,8 @@ Window {
 
             Column {
                 Layout.fillWidth: true
-                Layout.fillHeight: overlay.landscape
+                Layout.maximumWidth: overlay.landscape ? 128 : 100000
+                Layout.alignment: Qt.AlignTop
                 Layout.preferredWidth: overlay.landscape ? 128 : -1
                 spacing: 2
                 Text {
@@ -284,7 +378,8 @@ Window {
             Column {
                 visible: overlay.hasStock
                 Layout.fillWidth: true
-                Layout.fillHeight: overlay.landscape
+                Layout.maximumWidth: overlay.landscape ? 140 : 100000
+                Layout.alignment: Qt.AlignTop
                 Layout.preferredWidth: overlay.landscape ? 140 : -1
                 spacing: 4
                 Text {
@@ -334,7 +429,8 @@ Window {
             Column {
                 visible: overlay.hasTenta
                 Layout.fillWidth: true
-                Layout.fillHeight: overlay.landscape
+                Layout.maximumWidth: overlay.landscape ? 150 : 100000
+                Layout.alignment: Qt.AlignTop
                 Layout.preferredWidth: overlay.landscape ? 150 : -1
                 spacing: 4
                 Row {
@@ -390,7 +486,8 @@ Window {
             Column {
                 visible: overlay.hasExo
                 Layout.fillWidth: true
-                Layout.fillHeight: overlay.landscape
+                Layout.maximumWidth: overlay.landscape ? 140 : 100000
+                Layout.alignment: Qt.AlignTop
                 Layout.preferredWidth: overlay.landscape ? 140 : -1
                 spacing: 4
                 Text {
@@ -436,6 +533,7 @@ Window {
         }
 
         Item {
+            visible: !overlay.collapsed
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             width: overlay.grip

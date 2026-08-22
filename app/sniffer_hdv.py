@@ -266,12 +266,13 @@ class TcpStream:
                 if len(peek) >= 20 and TYPE_URL_MARK not in peek:
                     self.buf = self.buf[1:]
                     continue
-                nxt = _take_complete_ankama(self.buf[1:])
-                if nxt is not None:
-                    body, rest = nxt
-                    frames.append(body)
-                    self.buf = rest
-                    continue
+                # Trame plausible (marker ankama present, ou pas encore
+                # assez d'octets pour en juger) : elle est juste incomplete,
+                # pas corrompue. On attend le prochain feed() au lieu
+                # d'appeler _take_complete_ankama, qui ne trouve que des
+                # candidats DEJA entierement bufferises et tronquait donc
+                # les gros messages multi-paquets (ex. la table de prix
+                # moyens ~70 Ko) en plein milieu.
                 break
             body = self.buf[j:end]
             mark = body.find(TYPE_URL_MARK)

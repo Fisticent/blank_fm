@@ -11,6 +11,7 @@ import os
 import sys
 import time
 import threading
+import unicodedata
 import urllib.request
 from collections import Counter
 from datetime import datetime, date, timedelta
@@ -136,6 +137,14 @@ def _fmt_duration(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}"
 
 
+def _fmt_duration_min(seconds: float) -> str:
+    """Comme _fmt_duration, sans les secondes (HH:MM)."""
+    s = int(max(0, seconds))
+    h, rem = divmod(s, 3600)
+    m, _ = divmod(rem, 60)
+    return f"{h:02d}:{m:02d}"
+
+
 def _fmt_duration_short(seconds: float) -> str:
     s = int(max(0, seconds))
     h, rem = divmod(s, 3600)
@@ -189,6 +198,12 @@ def _price_compare_day(days: dict[str, dict[int, int]], horizon: str,
             return s
         d += timedelta(days=1)
     return None
+
+
+def _fold(s: str) -> str:
+    """Enleve les accents et met en minuscules (recherche insensible aux accents)."""
+    s = unicodedata.normalize("NFD", s)
+    return "".join(c for c in s if unicodedata.category(c) != "Mn").lower()
 
 
 def _price_delta(now: int, then: int) -> tuple[str, str]:
@@ -1032,11 +1047,11 @@ class FmPanelBridge(QObject):
 
     @Property(str, notify=updated)
     def sessionDuration(self) -> str:
-        return _fmt_duration(self._session_seconds())
+        return _fmt_duration_min(self._session_seconds())
 
     @Property(str, notify=updated)
     def itemDuration(self) -> str:
-        return _fmt_duration(self._item_seconds())
+        return _fmt_duration_min(self._item_seconds())
 
     @Property(bool, notify=updated)
     def timerPaused(self) -> bool:
@@ -1977,7 +1992,7 @@ class FmPanelBridge(QObject):
 
     @Slot(str)
     def set_rune_filter(self, query: str):
-        q = (query or "").strip().lower()
+        q = _fold((query or "").strip())
         if q == self._rune_filter:
             return
         self._rune_filter = q
@@ -1995,7 +2010,7 @@ class FmPanelBridge(QObject):
             return rows
         out = []
         for r in rows:
-            hay = f"{r['name']} {r['stat']} {r['gid']}".lower()
+            hay = _fold(f"{r['name']} {r['stat']} {r['gid']}")
             if q in hay:
                 out.append(r)
         return out
@@ -2012,6 +2027,17 @@ class FmPanelBridge(QObject):
         except OSError:
             return ""
         return datetime.fromtimestamp(ts).strftime("%d/%m/%Y %H:%M")
+
+    @Property(bool, notify=runesChanged)
+    def pricesUpToDate(self) -> bool:
+        # Le prix moyen n'est retransmis par le serveur qu'au login (message
+        # ivi) : hors reconnexion, prices.json n'est jamais touche a nouveau.
+        path = data_file("prices.json")
+        try:
+            ts = os.path.getmtime(path)
+        except OSError:
+            return False
+        return datetime.fromtimestamp(ts).date() == date.today()
 
     @Property(str, notify=runesChanged)
     def priceHorizon(self) -> str:
@@ -2215,6 +2241,20 @@ class FmPanelBridge(QObject):
     @Property(bool, notify=settingsChanged)
     def overlayLowRunesEnabled(self) -> bool:
         return bool(self._settings.get("overlay_low_runes", True))
+
+    @Property(bool, notify=settingsChanged)
+    def overlayCollapseOnPauseEnabled(self) -> bool:
+        return bool(self._settings.get("overlay_collapse_on_pause", True))
+
+    @Slot(bool)
+    def set_overlay_collapse_on_pause_enabled(self, enabled: bool):
+        self._settings["overlay_collapse_on_pause"] = bool(enabled)
+        self._save_settings()
+        self.settingsChanged.emit()
+
+    @Slot(bool)
+    def setOverlayCollapseOnPauseEnabled(self, enabled: bool):
+        self.set_overlay_collapse_on_pause_enabled(enabled)
 
     @Slot(bool)
     def set_overlay_low_runes_enabled(self, enabled: bool):

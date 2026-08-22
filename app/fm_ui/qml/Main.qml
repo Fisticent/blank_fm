@@ -1148,6 +1148,49 @@ ApplicationWindow {
 
                     Row {
                         width: parent.width
+                        height: 20
+                        spacing: 8
+
+                        Rectangle {
+                            width: 16
+                            height: 16
+                            radius: 8
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: app.pricesUpToDate ? Colors.success : Colors.warning
+                            visible: app.pricesUpdatedLabel.length > 0
+                            Text {
+                                anchors.centerIn: parent
+                                text: app.pricesUpToDate ? "✓" : "!"
+                                color: Colors.text_on_accent
+                                font.family: Colors.font_family
+                                font.pixelSize: 11
+                                font.bold: true
+                            }
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: app.pricesUpdatedLabel.length > 0
+                            text: app.pricesUpToDate
+                                  ? "Prix à jour"
+                                  : "Prix pas à jour — déco/reco ton personnage pour les mettre à jour"
+                            color: app.pricesUpToDate ? Colors.success : Colors.warning
+                            font.family: Colors.font_family
+                            font.pixelSize: Colors.font_size_secondary
+                            font.bold: true
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: app.pricesUpdatedLabel.length === 0
+                            text: "Aucun prix capté — déco/reco ton personnage pour les récupérer"
+                            color: Colors.warning
+                            font.family: Colors.font_family
+                            font.pixelSize: Colors.font_size_secondary
+                            font.bold: true
+                        }
+                    }
+
+                    Row {
+                        width: parent.width
                         height: 18
                         spacing: runesPage.colGap
                         Item { width: runesPage.colPad; height: 1 }
@@ -1201,7 +1244,10 @@ ApplicationWindow {
                     ListView {
                         id: runesList
                         width: parent.width
-                        height: Math.max(80, parent.height - 56)
+                        // 56 = recherche/horizon (30) + en-tete colonnes (18) + 2
+                        // gouttieres (8+8) ; +28 = ligne de statut prix (20) + sa
+                        // gouttiere (8) ajoutee au-dessus de l'en-tete.
+                        height: Math.max(80, parent.height - 84)
                         model: app.runesCatalogModel
                         spacing: 4
                         clip: true
@@ -1378,6 +1424,14 @@ ApplicationWindow {
                             ThemedSwitch {
                                 checked: app.overlayLowRunesEnabled
                                 onClicked: app.setOverlayLowRunesEnabled(!app.overlayLowRunesEnabled)
+                            }
+                        }
+                        SettingsRow {
+                            label: "Retracter l'overlay en pause"
+                            hint: "Passe en pastille minimale tant que la FM est en pause"
+                            ThemedSwitch {
+                                checked: app.overlayCollapseOnPauseEnabled
+                                onClicked: app.setOverlayCollapseOnPauseEnabled(!app.overlayCollapseOnPauseEnabled)
                             }
                         }
                         Row {
