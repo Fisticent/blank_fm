@@ -10,7 +10,10 @@ from datetime import datetime
 from typing import Optional, TextIO
 
 MAX_LINES = 1000
-_lock = threading.Lock()
+MAX_FILE_BYTES = 5 * 1024 * 1024   # dofus_fm.log : rotation a 5 Mo
+# Reentrant : feed() ecrit dans _file, et toute exception d'ecriture
+# repasserait par un print -> feed(). Un Lock simple s'auto-bloquerait.
+_lock = threading.RLock()
 _lines: deque[str] = deque(maxlen=MAX_LINES)
 _partial = ""
 _generation = 0
@@ -136,6 +139,22 @@ def _excepthook(typ, val, tb) -> None:
             pass
 
 
+def _rotate(log_path: str) -> None:
+    """Archive le log en .1 s'il depasse le plafond (append sinon illimite)."""
+    try:
+        if os.path.getsize(log_path) <= MAX_FILE_BYTES:
+            return
+    except OSError:
+        return
+    backup = log_path + ".1"
+    try:
+        if os.path.exists(backup):
+            os.remove(backup)
+        os.replace(log_path, backup)
+    except OSError:
+        pass
+
+
 def install(log_path: str) -> str:
     """Redirige stdout/stderr vers le fichier + tampon. Idempotent."""
     global _file, _orig_stderr, _orig_stdout, _orig_excepthook, _log_path
@@ -143,6 +162,7 @@ def install(log_path: str) -> str:
     if _file is None:
         try:
             os.makedirs(os.path.dirname(log_path) or ".", exist_ok=True)
+            _rotate(log_path)
             _file = open(log_path, "a", encoding="utf-8", errors="replace", buffering=1)
         except OSError:
             _file = None

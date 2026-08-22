@@ -36,7 +36,8 @@ from fm_decoder import (EFFECTS, ITEMS, RUNES, MALUS_EFFECTS, effect_name,
                         effect_str, item_name, known_item_gid)
 from fetch_runes import rune_weight
 from item_jet import get_template, global_jet_pct
-from paths import data_file, SCRATCH_DIR, PROJECT_DIR
+from paths import (data_file, SCRATCH_DIR, PROJECT_DIR, write_json_atomic,
+                   trim_file)
 from proto_learn import PROTO, classify_payload, DEFAULT_MAP
 
 PORT_GAME = 5555
@@ -44,6 +45,7 @@ FORGE_SLOT = 63   # emplacement de l'item dans l'interface de forgemagie
 RUNE_LOW_QTY = 30
 PRICES_HISTORY_PATH = os.path.join(PROJECT_DIR, "prices_history.json")
 PRICE_HISTORY_KEEP = 120
+FRAMES_LOG_MAX_BYTES = 20 * 1024 * 1024   # frames.jsonl : rotation a 20 Mo
 
 # Densite (poids de base) par effectId — source DPLN (poids simple), cf.
 # dofuspourlesnoobs.com/guide-forgemagie.html. Inconnu -> 1.0 (fallback).
@@ -98,7 +100,11 @@ class FmPanel:
         self.outdir = outdir
         os.makedirs(outdir, exist_ok=True)
         self.log_path = os.path.join(outdir, "frames.jsonl")
+        # Journal de trames en append : sans rotation il atteint vite
+        # plusieurs dizaines de Mo sur une install portable.
+        trim_file(self.log_path, FRAMES_LOG_MAX_BYTES)
         self._log = open(self.log_path, "a", encoding="utf-8")
+        self._log_bytes = self._log.tell()
         self.flows: dict[tuple, TcpStream] = {}
         self.n = 0
         self.events: deque = deque(maxlen=80)
@@ -120,6 +126,7 @@ class FmPanel:
         self.prices: dict[int, int] = {}
         self._prices_loaded = False
         self.prices_rev = 0
+        self._price_day_written: Optional[tuple] = None
         self._pending_price_gid: Optional[int] = None
         self.cost_total = 0
         self.cost_by_stat: Counter = Counter()
@@ -133,6 +140,21 @@ class FmPanel:
     def close(self) -> None:
         if self._log:
             self._log.close()
+
+    def _rotate_log(self) -> None:
+        """Bascule frames.jsonl en .1 une fois le plafond atteint."""
+        try:
+            self._log.close()
+        except OSError:
+            pass
+        trim_file(self.log_path, 0)
+        try:
+            self._log = open(self.log_path, "a", encoding="utf-8")
+        except OSError as e:
+            print("[DOFUS-FM] frames.jsonl:", e, file=sys.stderr)
+            return
+        self._log_bytes = 0
+        self._log_since_flush = 0
 
     # --- flux ---
     def feed(self, direction: str, data: bytes, flow_key: tuple) -> None:
@@ -177,11 +199,15 @@ class FmPanel:
             rec["n_prices"] = len(ivi_batch or {})
         if kind or name in known:
             try:
-                self._log.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                line = json.dumps(rec, ensure_ascii=False) + "\n"
+                self._log.write(line)
+                self._log_bytes += len(line)
                 self._log_since_flush += 1
                 if self._log_since_flush >= 20:
                     self._log.flush()
                     self._log_since_flush = 0
+                if self._log_bytes >= FRAMES_LOG_MAX_BYTES:
+                    self._rotate_log()
             except OSError:
                 pass
         self.n += 1
@@ -367,13 +393,9 @@ class FmPanel:
         return global_jet_pct(self._effects, self._template, MALUS_EFFECTS)
 
     def _save_prices(self) -> None:
-        path = data_file("prices.json")
-        tmp = path + ".tmp"
         try:
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump({str(k): v for k, v in self.prices.items()},
-                          f, ensure_ascii=False)
-            os.replace(tmp, path)
+            write_json_atomic(data_file("prices.json"),
+                              {str(k): v for k, v in self.prices.items()})
         except OSError as e:
             print("[DOFUS-FM] prices.json:", e, file=sys.stderr)
 
@@ -409,30 +431,33 @@ class FmPanel:
     def _record_price_day(self) -> None:
         if not self.prices:
             return
-        days = self._load_price_days()
         today = datetime.now().strftime("%Y-%m-%d")
-        days[today] = {}
+        snap = {}
         for k, v in self.prices.items():
             try:
                 n = int(v)
             except (TypeError, ValueError):
                 continue
             if n > 0:
-                days[today][str(k)] = n
-        if not days[today]:
-            days.pop(today, None)
+                snap[str(k)] = n
+        if not snap:
             return
+        # Appele a chaque paquet de prix : sans ce garde-fou on relirait et
+        # reecrirait tout l'historique meme quand rien n'a bouge.
+        if self._price_day_written == (today, len(snap), hash(frozenset(snap.items()))):
+            return
+        days = self._load_price_days()
+        days[today] = snap
         keys = sorted(d for d in days if isinstance(d, str) and len(d) == 10)
         drop = keys[:-PRICE_HISTORY_KEEP] if len(keys) > PRICE_HISTORY_KEEP else []
         for k in drop:
             days.pop(k, None)
-        tmp = PRICES_HISTORY_PATH + ".tmp"
         try:
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump({"days": days}, f, ensure_ascii=False)
-            os.replace(tmp, PRICES_HISTORY_PATH)
+            write_json_atomic(PRICES_HISTORY_PATH, {"days": days})
         except OSError as e:
             print("[DOFUS-FM] prices_history.json:", e, file=sys.stderr)
+            return
+        self._price_day_written = (today, len(snap), hash(frozenset(snap.items())))
 
     def _load_prices(self) -> None:
         """Table des prix moyens {gid: kamas} (prices.json, optionnel)."""

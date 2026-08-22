@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import threading
 import urllib.request
 from collections import Counter
@@ -25,7 +26,8 @@ from fm_ui import applog
 from fm_ui.fm_sounds import (
     DEFAULT_RULES, eval_cues, exo_increased, is_exo_attempt, play_cues,
 )
-from paths import data_file, SCRATCH_DIR, CAPTURES_DIR, APP_DIR, PROJECT_DIR, cache_dir
+from paths import (data_file, SCRATCH_DIR, CAPTURES_DIR, APP_DIR, PROJECT_DIR,
+                   cache_dir, write_json_atomic)
 from npcap_setup import npcap_present
 
 SETTINGS_PATH = os.path.join(PROJECT_DIR, "fm_settings.json")
@@ -215,6 +217,7 @@ class FmPanelBridge(QObject):
     requestQuit = Signal()
     logChanged = Signal()
     historyDetailChanged = Signal()
+    _historySaveRequested = Signal()
 
     def __init__(self, qapp=None):
         super().__init__()
@@ -259,6 +262,7 @@ class FmPanelBridge(QObject):
         self._history_save.setSingleShot(True)
         self._history_save.setInterval(800)
         self._history_save.timeout.connect(self._save_history)
+        self._historySaveRequested.connect(self._history_save.start)
         self._timer = QTimer(self)
         self._timer.setInterval(1000)
         self._timer.timeout.connect(self._on_tick)
@@ -725,7 +729,6 @@ class FmPanelBridge(QObject):
                 self.npcapChanged.emit()
                 if not launch_installer(path):
                     raise RuntimeError("impossible de lancer l'installeur")
-                import time
                 for _ in range(90):
                     time.sleep(2)
                     if npcap_present():
@@ -1238,42 +1241,53 @@ class FmPanelBridge(QObject):
         self._rune_dl.add(gid)
 
         def _dl():
-            with self._rune_dl_lock:
-                if os.path.isfile(local) and os.path.getsize(local) > 32:
+            # Le gid ne reste marque "en cours" que si l'icone a bien ete
+            # obtenue : sinon un simple hoquet reseau la ferait manquer
+            # jusqu'a la fin de la session.
+            ok = False
+            try:
+                with self._rune_dl_lock:
+                    if os.path.isfile(local) and os.path.getsize(local) > 32:
+                        self.runeIconReady.emit(
+                            gid, QUrl.fromLocalFile(local).toString())
+                        ok = True
+                        return
+                    iid = icon_id
+                    if not iid:
+                        iid = self._fetch_rune_icon_id(gid)
+                    if not iid:
+                        return
+                    urls = [
+                        f"https://api.dofusdu.de/dofus3/v1/img/item/{iid}-64.png",
+                        f"https://api.dofusdb.fr/img/items/{iid}.png",
+                    ]
+                    os.makedirs(os.path.dirname(local), exist_ok=True)
+                    import urllib.request
+                    data = b""
+                    for url in urls:
+                        try:
+                            req = urllib.request.Request(
+                                url, headers={"User-Agent": "dofus-fm/1.0"})
+                            data = urllib.request.urlopen(req, timeout=20).read()
+                            if data[:4] == b"\x89PNG":
+                                break
+                            data = b""
+                        except Exception:
+                            data = b""
+                    if data[:4] != b"\x89PNG":
+                        return
+                    try:
+                        with open(local, "wb") as f:
+                            f.write(data)
+                    except OSError as e:
+                        print("[DOFUS-FM] icone rune", gid, ":", e, file=sys.stderr)
+                        return
                     self.runeIconReady.emit(
                         gid, QUrl.fromLocalFile(local).toString())
-                    return
-                iid = icon_id
-                if not iid:
-                    iid = self._fetch_rune_icon_id(gid)
-                if not iid:
-                    return
-                urls = [
-                    f"https://api.dofusdu.de/dofus3/v1/img/item/{iid}-64.png",
-                    f"https://api.dofusdb.fr/img/items/{iid}.png",
-                ]
-                os.makedirs(os.path.dirname(local), exist_ok=True)
-                import urllib.request
-                data = b""
-                for url in urls:
-                    try:
-                        req = urllib.request.Request(
-                            url, headers={"User-Agent": "dofus-fm/1.0"})
-                        data = urllib.request.urlopen(req, timeout=20).read()
-                        if data[:4] == b"\x89PNG":
-                            break
-                        data = b""
-                    except Exception:
-                        data = b""
-                if data[:4] != b"\x89PNG":
-                    return
-                try:
-                    with open(local, "wb") as f:
-                        f.write(data)
-                except OSError as e:
-                    print("[DOFUS-FM] icone rune", gid, ":", e, file=sys.stderr)
-                    return
-                self.runeIconReady.emit(gid, QUrl.fromLocalFile(local).toString())
+                    ok = True
+            finally:
+                if not ok:
+                    self._rune_dl.discard(gid)
 
         threading.Thread(target=_dl, daemon=True).start()
 
@@ -1635,7 +1649,11 @@ class FmPanelBridge(QObject):
         self._schedule_history_save()
 
     def _schedule_history_save(self) -> None:
-        self._history_save.start()
+        # Peut etre appele depuis le thread de capture (sniffer) : demarrer
+        # le QTimer directement depuis un thread etranger declenche
+        # "QObject::startTimer: Timers cannot be started from another thread".
+        # Le signal passe par la boucle d'evenements du thread proprietaire.
+        self._historySaveRequested.emit()
 
     def _history_items_to_save(self) -> list:
         rows: list[dict] = []
@@ -1712,11 +1730,8 @@ class FmPanelBridge(QObject):
         rows = self._history_items_to_save()
         if not rows:
             return
-        tmp = HISTORY_PATH + ".tmp"
         try:
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump({"items": rows}, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, HISTORY_PATH)
+            write_json_atomic(HISTORY_PATH, {"items": rows}, indent=2)
         except OSError as e:
             print("[DOFUS-FM] historique:", e, file=sys.stderr)
 
@@ -2124,8 +2139,7 @@ class FmPanelBridge(QObject):
 
     def _save_settings(self) -> None:
         try:
-            with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
-                json.dump(self._settings, f, ensure_ascii=False, indent=2)
+            write_json_atomic(SETTINGS_PATH, self._settings, indent=2)
         except OSError as e:
             print("[DOFUS-FM] settings:", e, file=sys.stderr)
 

@@ -20,7 +20,7 @@ from fm_decoder import (
     _ensure_effects_loaded, _ensure_items_enriched, _fields, _effect_list,
 )
 from fm_cost import parse_ivi
-from paths import PROJECT_DIR, data_file
+from paths import PROJECT_DIR, data_file, write_json_atomic
 
 DEFAULT_MAP = {
     "rune_echo": "kfb",
@@ -284,12 +284,8 @@ class ProtocolMap:
             "scores": {r: dict(c) for r, c in self.scores.items() if c},
             "samples": dict(self.samples),
         }
-        tmp = self.user_path + ".tmp"
         try:
-            os.makedirs(os.path.dirname(self.user_path) or ".", exist_ok=True)
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(blob, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, self.user_path)
+            write_json_atomic(self.user_path, blob, indent=2)
         except OSError:
             pass
 
